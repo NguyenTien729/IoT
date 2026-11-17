@@ -1,0 +1,2825 @@
+<!doctype html>
+<html lang="vi">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Smart Room Security - IoT Dashboard</title>
+        <!-- Thư viện MQTT.js chính thức chạy qua trình duyệt -->
+        <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+        <style>
+            :root {
+                --navy-900: #0f172a;
+                --navy-800: #1e293b;
+                --navy-700: #334155;
+                --blue-600: #0284c7;
+                --blue-500: #0ea5e9;
+                --blue-50: #f0f9ff;
+                --bg-main: #f1f5f9;
+                --card-bg: #ffffff;
+                --text-main: #0f172a;
+                --text-muted: #64748b;
+                --border-color: #e2e8f0;
+                --safe-green: #16a34a;
+                --safe-bg: #dcfce7;
+                --warn-yellow: #d97706;
+                --warn-bg: #fef3c7;
+                --danger-red: #dc2626;
+                --danger-bg: #fee2e2;
+                --radius: 10px;
+                --shadow: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+                --transition: all 0.25s ease;
+            }
+
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+                font-family:
+                    "Segoe UI",
+                    system-ui,
+                    -apple-system,
+                    sans-serif;
+            }
+
+            body {
+                background-color: var(--bg-main);
+                color: var(--text-main);
+                line-height: 1.5;
+                padding-bottom: 40px;
+            }
+
+            /* KHU VỰC 1: HEADER & TỔNG QUAN HỆ THỐNG */
+            .top-navbar {
+                background: linear-gradient(135deg, var(--navy-900), var(--navy-800));
+                color: #ffffff;
+                padding: 16px 24px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                position: relative;
+                z-index: 100;
+            }
+
+            .navbar-top-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 16px;
+                max-width: 1440px;
+                margin: 0 auto;
+            }
+
+            .brand-group {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .brand-icon {
+                width: 40px;
+                height: 40px;
+                background: var(--blue-600);
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+
+            .brand-title h1 {
+                font-size: 1.25rem;
+                font-weight: 700;
+                letter-spacing: 0.3px;
+            }
+
+            .brand-title p {
+                font-size: 0.8rem;
+                color: #94a3b8;
+            }
+
+            .header-actions {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                flex-wrap: wrap;
+            }
+
+            .btn-config {
+                background: rgba(255, 255, 255, 0.1);
+                color: #ffffff;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                padding: 8px 14px;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 0.85rem;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                transition: var(--transition);
+            }
+
+            .btn-config:hover {
+                background: rgba(255, 255, 255, 0.2);
+            }
+
+            .overview-bar {
+                max-width: 1440px;
+                margin: 16px auto 0;
+                padding-top: 14px;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+                gap: 12px;
+            }
+
+            .overview-item {
+                background: rgba(255, 255, 255, 0.06);
+                padding: 10px 14px;
+                border-radius: 8px;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .overview-label {
+                font-size: 0.72rem;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: #94a3b8;
+            }
+
+            .overview-val {
+                font-size: 0.92rem;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .dot {
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                display: inline-block;
+                flex-shrink: 0;
+            }
+
+            .dot-online {
+                background-color: #22c55e;
+                box-shadow: 0 0 8px #22c55e;
+            }
+            .dot-warn {
+                background-color: #f59e0b;
+                box-shadow: 0 0 8px #f59e0b;
+            }
+            .dot-offline {
+                background-color: #ef4444;
+            }
+
+            /* CONTAINER CHÍNH */
+            .container {
+                max-width: 1440px;
+                margin: 24px auto;
+                padding: 0 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 24px;
+            }
+
+            .section-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 14px;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .section-title {
+                font-size: 1.05rem;
+                font-weight: 700;
+                color: var(--navy-900);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                border-left: 4px solid var(--blue-600);
+                padding-left: 10px;
+            }
+
+            .card {
+                background: var(--card-bg);
+                border-radius: var(--radius);
+                border: 1px solid var(--border-color);
+                box-shadow: var(--shadow);
+                padding: 20px;
+                transition: var(--transition);
+            }
+
+            /* KHU VỰC 5: BANNER TRUNG TÂM CẢNH BÁO */
+            .alert-center-banner {
+                border-left: 6px solid var(--safe-green);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+
+            .alert-center-banner.active-danger {
+                background-color: var(--danger-bg);
+                border-color: var(--danger-red);
+                animation: pulseBorder 1.8s infinite;
+            }
+
+            @keyframes pulseBorder {
+                0%,
+                100% {
+                    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35);
+                }
+                50% {
+                    box-shadow: 0 0 0 8px rgba(220, 38, 38, 0);
+                }
+            }
+
+            .alert-banner-info h3 {
+                font-size: 1.05rem;
+                margin-bottom: 4px;
+            }
+
+            .alert-banner-info p {
+                font-size: 0.88rem;
+                color: var(--text-muted);
+            }
+
+            .alert-banner-actions {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+
+            /* KHU VỰC 2: GIÁM SÁT CẢM BIẾN (6 THẺ) */
+            .sensor-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+                gap: 16px;
+            }
+
+            .sensor-card {
+                background: var(--card-bg);
+                border-radius: var(--radius);
+                border: 1px solid var(--border-color);
+                border-top: 4px solid var(--blue-600);
+                padding: 18px;
+                box-shadow: var(--shadow);
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                gap: 12px;
+                transition: var(--transition);
+            }
+
+            .sensor-card.status-safe {
+                border-top-color: var(--safe-green);
+            }
+            .sensor-card.status-warn {
+                border-top-color: var(--warn-yellow);
+                background-color: #fffbeb;
+            }
+            .sensor-card.status-danger {
+                border-top-color: var(--danger-red);
+                background-color: #fef2f2;
+            }
+
+            .sensor-top {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+            }
+
+            .sensor-name {
+                font-size: 0.88rem;
+                font-weight: 600;
+                color: var(--text-muted);
+            }
+
+            .sensor-icon {
+                width: 36px;
+                height: 36px;
+                border-radius: 8px;
+                background: var(--blue-50);
+                color: var(--blue-600);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .sensor-value-wrap {
+                display: flex;
+                align-items: baseline;
+                gap: 6px;
+                margin: 4px 0;
+            }
+
+            .sensor-value {
+                font-size: 1.75rem;
+                font-weight: 700;
+                color: var(--navy-900);
+            }
+
+            .sensor-unit {
+                font-size: 0.9rem;
+                color: var(--text-muted);
+                font-weight: 600;
+            }
+
+            .sensor-footer {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding-top: 10px;
+                border-top: 1px solid var(--border-color);
+                font-size: 0.76rem;
+            }
+
+            .badge {
+                padding: 3px 9px;
+                border-radius: 999px;
+                font-weight: 600;
+                font-size: 0.74rem;
+                display: inline-block;
+            }
+
+            .badge-neutral {
+                background: #e2e8f0;
+                color: #475569;
+            }
+            .badge-safe {
+                background: var(--safe-bg);
+                color: var(--safe-green);
+            }
+            .badge-warn {
+                background: var(--warn-bg);
+                color: var(--warn-yellow);
+            }
+            .badge-danger {
+                background: var(--danger-bg);
+                color: var(--danger-red);
+            }
+
+            /* GRID 2 CỘT CHO KHU VỰC 3 & KHU VỰC 4 */
+            .middle-grid {
+                display: grid;
+                grid-template-columns: 1fr 1.35fr;
+                gap: 24px;
+            }
+
+            @media (max-width: 992px) {
+                .middle-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            /* KHU VỰC 3: TRUNG TÂM ĐIỀU KHIỂN AN NINH */
+            .control-status-box {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+                margin-bottom: 18px;
+            }
+
+            .status-tile {
+                background: var(--bg-main);
+                padding: 14px;
+                border-radius: 8px;
+                border: 1px solid var(--border-color);
+            }
+
+            .status-tile-label {
+                font-size: 0.78rem;
+                color: var(--text-muted);
+                margin-bottom: 4px;
+            }
+
+            .status-tile-value {
+                font-size: 1.05rem;
+                font-weight: 700;
+            }
+
+            .control-btn-group {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+                margin-bottom: 14px;
+            }
+
+            .btn {
+                padding: 11px 16px;
+                border-radius: 8px;
+                border: none;
+                font-weight: 600;
+                font-size: 0.88rem;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                transition: var(--transition);
+            }
+
+            .btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            .btn-arm {
+                background: var(--blue-600);
+                color: #ffffff;
+            }
+            .btn-arm:hover:not(:disabled) {
+                background: #0369a1;
+            }
+
+            .btn-disarm {
+                background: var(--navy-800);
+                color: #ffffff;
+            }
+            .btn-disarm:hover:not(:disabled) {
+                background: var(--navy-900);
+            }
+
+            .btn-buzzer-on {
+                background: var(--danger-red);
+                color: #ffffff;
+            }
+            .btn-buzzer-on:hover:not(:disabled) {
+                background: #b91c1c;
+            }
+
+            .btn-buzzer-off {
+                background: #e2e8f0;
+                color: var(--navy-900);
+            }
+            .btn-buzzer-off:hover:not(:disabled) {
+                background: #cbd5e1;
+            }
+
+            .cmd-feedback-box {
+                margin-top: 12px;
+                padding: 10px 14px;
+                border-radius: 8px;
+                font-size: 0.84rem;
+                background: var(--bg-main);
+                border-left: 4px solid var(--navy-700);
+                color: var(--text-main);
+            }
+
+            /* KHU VỰC 4: CAMERA ESP32-CAM */
+            .cam-viewport {
+                width: 100%;
+                height: auto;
+                aspect-ratio: 4 / 3;
+                background: #090d16;
+                border-radius: 8px;
+                overflow: hidden;
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 14px;
+                border: 1px solid var(--border-color);
+            }
+
+            .cam-viewport img {
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+                display: none;
+            }
+
+            /* Xoay hình camera ngay trên web, không thay đổi camera vật lý */
+            .cam-viewport .cam-rotatable {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform-origin: center center;
+                border: 0;
+            }
+
+            .cam-placeholder {
+                text-align: center;
+                color: #94a3b8;
+                padding: 20px;
+                font-size: 0.88rem;
+            }
+
+            .snapshot-gallery {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+                gap: 10px;
+                margin-top: 14px;
+                max-height: 165px;
+                overflow-y: auto;
+                padding-top: 8px;
+                border-top: 1px solid var(--border-color);
+            }
+
+            .snap-item {
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                overflow: hidden;
+                background: var(--bg-main);
+                font-size: 0.7rem;
+            }
+
+            .snap-item img {
+                width: 100%;
+                height: 75px;
+                object-fit: cover;
+                display: block;
+            }
+
+            .snap-meta {
+                padding: 4px 6px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            /* KHU VỰC 6: BIỂU ĐỒ GRAFANA */
+            .time-filter-bar {
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+
+            .btn-time {
+                padding: 6px 12px;
+                border-radius: 6px;
+                border: 1px solid var(--border-color);
+                background: var(--card-bg);
+                cursor: pointer;
+                font-size: 0.82rem;
+                font-weight: 600;
+                color: var(--text-main);
+            }
+
+            .btn-time.active {
+                background: var(--blue-600);
+                color: #ffffff;
+                border-color: var(--blue-600);
+            }
+
+            .grafana-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 18px;
+                align-items: stretch;
+            }
+            @media (max-width: 900px) {
+                .grafana-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .grafana-panel {
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+                background: var(--card-bg);
+                border: 1px solid var(--border-color);
+                border-radius: var(--radius);
+                padding: 14px;
+                box-shadow: var(--shadow);
+            }
+            .grafana-panel h4 {
+                font-size: 0.9rem;
+                min-height: 44px;
+                margin-bottom: 8px;
+                color: var(--navy-800);
+                display: flex;
+                gap: 12px;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .grafana-panel h4 small {
+                white-space: nowrap;
+                color: var(--text-muted);
+                font-size: 0.72rem;
+            }
+            .grafana-frame-wrap {
+                width: 100%;
+                height: 300px;
+                min-width: 0;
+                background: #fff;
+                border-radius: 8px;
+                overflow: hidden;
+                position: relative;
+                border: 1px solid var(--border-color);
+            }
+            .grafana-frame-wrap iframe {
+                display: none;
+                width: 100%;
+                height: 100%;
+                border: 0;
+            }
+            .grafana-frame-wrap .cam-placeholder {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+                padding: 18px;
+                text-align: center;
+            }
+
+            /* KHU VỰC 7: NHẬT KÝ SỰ KIỆN */
+            .log-toolbar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-bottom: 14px;
+                justify-content: space-between;
+            }
+
+            .log-filters {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                flex: 1;
+            }
+
+            .input-control {
+                padding: 8px 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                font-size: 0.85rem;
+                outline: none;
+            }
+
+            .input-control:focus {
+                border-color: var(--blue-600);
+            }
+
+            .table-responsive {
+                width: 100%;
+                overflow-x: auto;
+                max-height: 380px;
+                overflow-y: auto;
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.85rem;
+                text-align: left;
+            }
+
+            thead {
+                background: var(--navy-900);
+                color: #ffffff;
+                position: sticky;
+                top: 0;
+                z-index: 5;
+            }
+
+            th,
+            td {
+                padding: 11px 14px;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            tbody tr:hover {
+                background-color: #f8fafc;
+            }
+
+            tr.row-unhandled {
+                background-color: #fff1f2;
+                font-weight: 600;
+            }
+
+            /* MODAL POPUP CẢNH BÁO & CẤU HÌNH */
+            .modal-backdrop {
+                position: fixed;
+                inset: 0;
+                background: rgba(15, 23, 42, 0.72);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                padding: 20px;
+            }
+
+            .modal-backdrop.show {
+                display: flex;
+            }
+
+            .modal-box {
+                background: var(--card-bg);
+                border-radius: 12px;
+                max-width: 620px;
+                width: 100%;
+                padding: 24px;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25);
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+
+            .modal-box.modal-danger {
+                border-top: 8px solid var(--danger-red);
+            }
+
+            .form-group {
+                margin-bottom: 14px;
+            }
+
+            .form-group label {
+                display: block;
+                font-size: 0.82rem;
+                font-weight: 600;
+                margin-bottom: 4px;
+                color: var(--navy-800);
+            }
+
+            .form-group input {
+                width: 100%;
+                padding: 8px 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                font-size: 0.88rem;
+            }
+
+            .form-row-2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+
+            /* ===== Tối ưu giao diện cho điện thoại ===== */
+            @media (max-width: 768px) {
+                body {
+                    font-size: 14px;
+                }
+
+                /* Thu nhỏ phần đầu trang */
+                .hero,
+                .header,
+                .top-banner,
+                .dashboard-header {
+                    padding: 12px 14px !important;
+                    min-height: auto !important;
+                }
+
+                .hero h1,
+                .header h1,
+                .dashboard-header h1 {
+                    font-size: 1.35rem !important;
+                    margin-bottom: 6px !important;
+                    line-height: 1.25 !important;
+                }
+
+                .hero p,
+                .header p,
+                .dashboard-header p,
+                .subtitle {
+                    font-size: 0.9rem !important;
+                    margin-bottom: 8px !important;
+                    line-height: 1.35 !important;
+                }
+
+                /* Hai nút trên đầu gọn lại */
+                .top-actions,
+                .header-actions,
+                .control-buttons {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    gap: 8px !important;
+                    margin-top: 8px !important;
+                }
+
+                .top-actions button,
+                .header-actions button,
+                .control-buttons button,
+                .top-actions .btn,
+                .header-actions .btn,
+                .control-buttons .btn {
+                    width: 100% !important;
+                    font-size: 0.95rem !important;
+                    padding: 10px 12px !important;
+                }
+
+                /* Các thẻ trạng thái phía trên */
+                .status-grid,
+                .overview-grid,
+                .summary-grid,
+                .dashboard-grid {
+                    display: grid !important;
+                    grid-template-columns: 1fr !important;
+                    gap: 10px !important;
+                }
+
+                .status-card,
+                .info-card,
+                .overview-card,
+                .card {
+                    padding: 12px !important;
+                    min-height: auto !important;
+                }
+
+                .status-card h3,
+                .info-card h3,
+                .overview-card h3,
+                .card h3 {
+                    font-size: 0.9rem !important;
+                    margin-bottom: 6px !important;
+                }
+
+                .status-card .value,
+                .info-card .value,
+                .overview-card .value,
+                .card .value {
+                    font-size: 1.1rem !important;
+                }
+
+                /* Thu nhỏ khoảng trắng toàn trang */
+                .container,
+                .main-container,
+                .dashboard-container,
+                .wrapper {
+                    padding-left: 10px !important;
+                    padding-right: 10px !important;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- KHU VỰC 1: TỔNG QUAN HỆ THỐNG -->
+        <header class="top-navbar">
+            <div class="navbar-top-row">
+                <div class="brand-group">
+                    <div class="brand-icon">
+                        <svg
+                            width="24"
+                            height="24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                    </div>
+                    <div class="brand-title">
+                        <h1>Smart Room Security</h1>
+                        <p>Hệ thống Giám sát Phòng & Cảnh báo Chống trộm IoT (ESP32 / MQTT / Node-RED)</p>
+                    </div>
+                </div>
+
+                <div class="header-actions">
+                    <button class="btn-config" id="btnEnableAudio" title="Cấp quyền âm thanh trình duyệt">
+                        🔊 Bật quyền Âm báo
+                    </button>
+                    <button class="btn-config" id="btnOpenConfig">⚙️ Cấu hình Kết nối (IP / Camera / Grafana)</button>
+                </div>
+            </div>
+
+            <div class="overview-bar">
+                <div class="overview-item">
+                    <span class="overview-label">Trạng thái MQTT</span>
+                    <div class="overview-val">
+                        <span class="dot dot-offline" id="dotMqtt"></span>
+                        <span id="txtMqttStatus">Đang kết nối...</span>
+                    </div>
+                </div>
+
+                <div class="overview-item">
+                    <span class="overview-label">Thiết bị ESP32</span>
+                    <div class="overview-val">
+                        <span class="dot dot-offline" id="dotEsp"></span>
+                        <span id="txtEspStatus">Chưa có dữ liệu</span>
+                    </div>
+                </div>
+
+                <div class="overview-item">
+                    <span class="overview-label">Node-RED Engine</span>
+                    <div class="overview-val">
+                        <span class="dot dot-offline" id="dotNodeRed"></span>
+                        <span id="txtNodeRedStatus">Chờ dữ liệu xác nhận</span>
+                    </div>
+                </div>
+
+                <div class="overview-item">
+                    <span class="overview-label">Thời gian hệ thống</span>
+                    <div class="overview-val" id="txtCurrentTime">--:--:--</div>
+                </div>
+
+                <div class="overview-item">
+                    <span class="overview-label">Cập nhật gần nhất</span>
+                    <div class="overview-val" id="txtLastUpdate">Chưa có dữ liệu</div>
+                </div>
+
+                <div class="overview-item">
+                    <span class="overview-label">An ninh tổng thể</span>
+                    <div class="overview-val">
+                        <span class="badge badge-neutral" id="badgeOverallSecurity">CHỜ XÁC NHẬN</span>
+                    </div>
+                </div>
+
+                <div class="overview-item">
+                    <span class="overview-label">Tổng cảnh báo hôm nay</span>
+                    <div class="overview-val" id="txtAlertCountToday">0 cảnh báo</div>
+                </div>
+            </div>
+        </header>
+
+        <main class="container">
+            <!-- KHU VỰC 5: TRUNG TÂM CẢNH BÁO (BANNER TRỰC QUAN) -->
+            <section class="card alert-center-banner" id="alertBanner">
+                <div class="alert-banner-info">
+                    <h3 id="alertBannerTitle">🛡️ Trung tâm Cảnh báo: Hệ thống bình thường</h3>
+                    <p id="alertBannerDesc">
+                        Chưa ghi nhận cảnh báo xâm nhập nào chưa xử lý. Mọi thông số đang được giám sát theo thời gian
+                        thực.
+                    </p>
+                </div>
+                <div class="alert-banner-actions">
+                    <button class="btn btn-buzzer-off" id="btnMuteBrowserSound" style="display: none">
+                        🔇 Tắt âm trình duyệt (Không tắt còi vật lý)
+                    </button>
+                    <button class="btn btn-arm" id="btnAckBannerAlert" style="display: none">
+                        ✅ Xác nhận đã xử lý cảnh báo
+                    </button>
+                </div>
+            </section>
+
+            <!-- KHU VỰC 2: GIÁM SÁT CẢM BIẾN -->
+            <section>
+                <div class="section-header">
+                    <h2 class="section-title">
+                        Khu vực 2: Giám sát Cảm biến Thời gian thực (Topic: nhom20/phong1/sensors)
+                    </h2>
+                    <span style="font-size: 0.82rem; color: var(--text-muted)" id="sensorStaleNotice">
+                        Tự động kiểm tra độ tươi dữ liệu mỗi giây (Ngưỡng cũ: 15s)
+                    </span>
+                </div>
+
+                <div class="sensor-grid">
+                    <!-- 1. Nhiệt độ -->
+                    <div class="sensor-card" id="cardTemp">
+                        <div class="sensor-top">
+                            <span class="sensor-name">1. Nhiệt độ (BME280)</span>
+                            <div class="sensor-icon">🌡️</div>
+                        </div>
+                        <div class="sensor-value-wrap">
+                            <span class="sensor-value" id="valTemp">--</span>
+                            <span class="sensor-unit">°C</span>
+                        </div>
+                        <div class="sensor-footer">
+                            <span class="badge badge-neutral" id="statusTemp">Chưa có dữ liệu</span>
+                            <span id="timeTemp">--:--:--</span>
+                        </div>
+                    </div>
+
+                    <!-- 2. Độ ẩm -->
+                    <div class="sensor-card" id="cardHum">
+                        <div class="sensor-top">
+                            <span class="sensor-name">2. Âm thanh (mức đo)</span>
+                            <div class="sensor-icon">💧</div>
+                        </div>
+                        <div class="sensor-value-wrap">
+                            <span class="sensor-value" id="valHum">--</span>
+                            <span class="sensor-unit">mức</span>
+                        </div>
+                        <div class="sensor-footer">
+                            <span class="badge badge-neutral" id="statusHum">Chưa có dữ liệu</span>
+                            <span id="timeHum">--:--:--</span>
+                        </div>
+                    </div>
+
+                    <!-- 3. Khí Gas -->
+                    <div class="sensor-card" id="cardGas">
+                        <div class="sensor-top">
+                            <span class="sensor-name">3. Khí Gas (MQ-2)</span>
+                            <div class="sensor-icon">🔥</div>
+                        </div>
+                        <div class="sensor-value-wrap">
+                            <span class="sensor-value" id="valGas">--</span>
+                            <span class="sensor-unit">mV</span>
+                        </div>
+                        <div class="sensor-footer">
+                            <span class="badge badge-neutral" id="statusGas">Chưa có dữ liệu</span>
+                            <span id="timeGas">--:--:--</span>
+                        </div>
+                    </div>
+
+                    <!-- 4. Trạng thái cửa -->
+                    <div class="sensor-card" id="cardDoor">
+                        <div class="sensor-top">
+                            <span class="sensor-name">4. Trạng thái cửa (Reed)</span>
+                            <div class="sensor-icon">🚪</div>
+                        </div>
+                        <div class="sensor-value-wrap">
+                            <span class="sensor-value" id="valDoor">--</span>
+                            <span class="sensor-unit"></span>
+                        </div>
+                        <div class="sensor-footer">
+                            <span class="badge badge-neutral" id="statusDoor">Chưa có dữ liệu</span>
+                            <span id="timeDoor">--:--:--</span>
+                        </div>
+                    </div>
+
+                    <!-- 5. Chuyển động -->
+                    <div class="sensor-card" id="cardMotion">
+                        <div class="sensor-top">
+                            <span class="sensor-name">5. Chuyển động (PIR)</span>
+                            <div class="sensor-icon">🏃</div>
+                        </div>
+                        <div class="sensor-value-wrap">
+                            <span class="sensor-value" id="valMotion">--</span>
+                            <span class="sensor-unit"></span>
+                        </div>
+                        <div class="sensor-footer">
+                            <span class="badge badge-neutral" id="statusMotion">Chưa có dữ liệu</span>
+                            <span id="timeMotion">--:--:--</span>
+                        </div>
+                    </div>
+
+                    <!-- 6. Ánh sáng -->
+                    <div class="sensor-card" id="cardLight">
+                        <div class="sensor-top">
+                            <span class="sensor-name">6. Ánh sáng (LDR)</span>
+                            <div class="sensor-icon">☀️</div>
+                        </div>
+                        <div class="sensor-value-wrap">
+                            <span class="sensor-value" id="valLight">--</span>
+                            <span class="sensor-unit" id="unitLight">lx / %</span>
+                        </div>
+                        <div class="sensor-footer">
+                            <span class="badge badge-neutral" id="statusLight">Chưa có dữ liệu</span>
+                            <span id="timeLight">--:--:--</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KHU VỰC 3 & KHU VỰC 4 -->
+            <div class="middle-grid">
+                <!-- KHU VỰC 3: TRUNG TÂM ĐIỀU KHIỂN AN NINH -->
+                <section class="card">
+                    <div class="section-header">
+                        <h2 class="section-title">Khu vực 3: Trung tâm Điều khiển An ninh</h2>
+                    </div>
+
+                    <div class="control-status-box">
+                        <div class="status-tile">
+                            <div class="status-tile-label">Chế độ bảo vệ trên ESP32</div>
+                            <div class="status-tile-value" id="actualSecurityMode">Chưa có phản hồi</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Trạng thái còi vật lý (chưa có xác nhận từ ESP32)</div>
+                            <div class="status-tile-value" id="actualBuzzerState">Chưa có phản hồi</div>
+                        </div>
+                    </div>
+
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; font-weight: 600">
+                        Chế độ Bảo vệ (ARM / DISARM):
+                    </p>
+                    <div class="control-btn-group">
+                        <button class="btn btn-arm" id="btnArm" disabled>🔒 ARM (Bật bảo vệ)</button>
+                        <button class="btn btn-disarm" id="btnDisarm" disabled>🔓 DISARM (Tắt bảo vệ)</button>
+                    </div>
+
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; font-weight: 600">
+                        Gửi lệnh điều khiển còi tới ESP32 qua MQTT:
+                    </p>
+                    <div class="control-btn-group">
+                        <button class="btn btn-buzzer-on" id="btnBuzzerOn" disabled>🚨 Bật còi báo động (ON)</button>
+                        <button class="btn btn-buzzer-off" id="btnBuzzerOff" disabled>🔕 Tắt còi báo động (OFF)</button>
+                    </div>
+
+                    <div class="cmd-feedback-box" id="cmdFeedbackBox">
+                        ARM/DISARM gửi lệnh arm / disarm tới ESP32 (nhom20/phong1/cmd); trạng thái hiển thị là trạng
+                        thái ESP32 xác nhận. Sau khi ARM, ESP32 đếm ngược 10 giây rồi mới cảnh báo. Nút còi gửi
+                        buzzer_on / buzzer_off; buzzer_off cũng dừng còi báo động.
+                    </div>
+                </section>
+
+                <!-- KHU VỰC 4: CAMERA ESP32-CAM -->
+                <section class="card">
+                    <div class="section-header">
+                        <h2 class="section-title">Khu vực 4: Giám sát Camera ESP32-CAM</h2>
+                        <span class="badge badge-neutral" id="badgeCamStatus">OFFLINE / CHƯA CẤU HÌNH</span>
+                    </div>
+
+                    <div class="cam-viewport">
+                        <img id="espCamStream" class="cam-rotatable" alt="ESP32-CAM Stream" style="display: none" />
+                        <iframe
+                            id="espCamIframe"
+                            class="cam-rotatable"
+                            title="Video ESP32-CAM"
+                            loading="eager"
+                            referrerpolicy="no-referrer"
+                            style="display: none; width: 100%; height: 100%; border: 0; background: #090d16"
+                        ></iframe>
+                        <div class="cam-placeholder" id="camPlaceholder">
+                            <p style="font-weight: 600; color: #e2e8f0; margin-bottom: 6px">
+                                Chưa kết nối luồng video ESP32-CAM
+                            </p>
+                            <p>
+                                Nhấn nút <b>"Cấu hình Kết nối"</b> ở góc trên để nhập URL Stream thực tế của ESP32-CAM
+                                (ví dụ: <code>http://192.168.1.120:81/stream</code>).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        style="
+                            display: flex;
+                            gap: 10px;
+                            flex-wrap: wrap;
+                            justify-content: space-between;
+                            align-items: center;
+                        "
+                    >
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+                            <button class="btn btn-arm" id="btnCaptureSnap">📸 Chụp ảnh Snapshot</button>
+                            <button class="btn btn-buzzer-off" id="btnReloadCam">🔄 Kết nối lại Camera</button>
+                            <button class="btn btn-buzzer-off" id="btnRotateCamLeft" title="Xoay hình 90 độ sang trái">
+                                ↶ Xoay trái
+                            </button>
+                            <button class="btn btn-buzzer-off" id="btnRotateCamRight" title="Xoay hình 90 độ sang phải">
+                                ↷ Xoay phải
+                            </button>
+                        </div>
+                        <a
+                            id="camDirectLink"
+                            href="http://192.168.1.108:81/stream"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style="font-size: 0.8rem; color: #0284c7"
+                            >Mở stream trực tiếp ↗</a
+                        >
+                        <span style="font-size: 0.78rem; color: var(--text-muted)" id="txtSnapCount"
+                            >Ảnh tự lưu tại C:\AnhAnNinh</span
+                        >
+                    </div>
+
+                    <div class="snapshot-gallery" id="snapshotGallery" style="display: none"></div>
+                    <!-- Canvas ẩn dùng để trích xuất ảnh từ luồng ESP32-CAM -->
+                    <canvas id="hiddenSnapCanvas" style="display: none"></canvas>
+                </section>
+            </div>
+
+            <!-- KHU VỰC 6: BIỂU ĐỒ VÀ PHÂN TÍCH DỮ LIỆU GRAFANA -->
+            <section class="card">
+                <div class="section-header">
+                    <h2 class="section-title">Khu vực 6: Phân tích Dữ liệu Lịch sử (InfluxDB & Grafana Iframe)</h2>
+                    <div class="time-filter-bar" id="grafanaTimeBar">
+                        <button class="btn-time" data-from="now-15m">15 phút</button>
+                        <button class="btn-time active" data-from="now-1h">1 giờ</button>
+                        <button class="btn-time" data-from="now-24h">24 giờ</button>
+                        <button class="btn-time" data-from="now-7d">7 ngày</button>
+                    </div>
+                </div>
+
+                <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px">
+                    Server Grafana mặc định: <code id="lblGrafanaServer">http://localhost:3000</code> (Bucket:
+                    <code>nhom20</code> | Measurement: <code>an_ninh_phong</code>). 5 biểu đồ đầu đã đối chiếu với Panel
+                    ID thực tế. Ba biểu đồ mở rộng cần nhập Panel ID từ Grafana trong phần Cấu hình.
+                </p>
+
+                <div class="grafana-grid">
+                    <div class="grafana-panel">
+                        <h4>
+                            <span>1. Biểu đồ Nhiệt độ (°C)</span><small>Panel ID: <span id="lblPidTemp">1</span></small>
+                        </h4>
+                        <div class="grafana-frame-wrap">
+                            <iframe id="iframeTemp" loading="lazy"></iframe>
+                            <div class="cam-placeholder" id="phTemp" style="color: var(--text-muted)">
+                                Chưa cấu hình Grafana Dashboard UID
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grafana-panel">
+                        <h4>
+                            <span>2. Biểu đồ Áp suất (hPa)</span><small>Panel ID: <span id="lblPidHum">2</span></small>
+                        </h4>
+                        <div class="grafana-frame-wrap">
+                            <iframe id="iframeHum" loading="lazy"></iframe>
+                            <div class="cam-placeholder" id="phHum" style="color: var(--text-muted)">
+                                Chưa cấu hình Grafana Dashboard UID
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grafana-panel">
+                        <h4>
+                            <span>3. Biểu đồ Ánh sáng (lux)</span><small>Panel ID: <span id="lblPidGas">3</span></small>
+                        </h4>
+                        <div class="grafana-frame-wrap">
+                            <iframe id="iframeGas" loading="lazy"></iframe>
+                            <div class="cam-placeholder" id="phGas" style="color: var(--text-muted)">
+                                Chưa cấu hình Grafana Dashboard UID
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grafana-panel">
+                        <h4>
+                            <span>4. Biểu đồ Mức âm thanh</span><small>Panel ID: <span id="lblPidLight">4</span></small>
+                        </h4>
+                        <div class="grafana-frame-wrap">
+                            <iframe id="iframeLight" loading="lazy"></iframe>
+                            <div class="cam-placeholder" id="phLight" style="color: var(--text-muted)">
+                                Chưa cấu hình Grafana Dashboard UID
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grafana-panel">
+                        <h4>
+                            <span>5. Biểu đồ Gas tăng so với nền (mV)</span
+                            ><small>Panel ID: <span id="lblPidMotion">5</span></small>
+                        </h4>
+                        <div class="grafana-frame-wrap">
+                            <iframe id="iframeMotion" loading="lazy"></iframe>
+                            <div class="cam-placeholder" id="phMotion" style="color: var(--text-muted)">
+                                Chưa cấu hình Grafana Dashboard UID
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Các biểu đồ mở rộng: chỉ tải khi đã nhập đúng Panel ID trên Grafana -->
+                    <div class="grafana-panel">
+                        <h4>
+                            <span>6. Khí gas MQ-2 (mV)</span
+                            ><small>Panel ID: <span id="lblPidgasRaw">Chưa đặt</span></small>
+                        </h4>
+                        <div class="grafana-frame-wrap">
+                            <iframe id="iframegasRaw" loading="lazy" title="Khí gas MQ-2 (mV)"></iframe>
+                            <div class="cam-placeholder" id="phgasRaw">
+                                Nhập Panel ID tương ứng trong phần Cấu hình để hiển thị
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grafana-panel">
+                        <h4>
+                            <span>7. Phát hiện chuyển động PIR</span
+                            ><small>Panel ID: <span id="lblPidmotionExtra">Chưa đặt</span></small>
+                        </h4>
+                        <div class="grafana-frame-wrap">
+                            <iframe id="iframemotionExtra" loading="lazy" title="Phát hiện chuyển động PIR"></iframe>
+                            <div class="cam-placeholder" id="phmotionExtra">
+                                Nhập Panel ID tương ứng trong phần Cấu hình để hiển thị
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grafana-panel">
+                        <h4>
+                            <span>8. Trạng thái cửa</span
+                            ><small>Panel ID: <span id="lblPiddoorExtra">Chưa đặt</span></small>
+                        </h4>
+                        <div class="grafana-frame-wrap">
+                            <iframe id="iframedoorExtra" loading="lazy" title="Trạng thái cửa"></iframe>
+                            <div class="cam-placeholder" id="phdoorExtra">
+                                Nhập Panel ID tương ứng trong phần Cấu hình để hiển thị
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KHU VỰC 7: NHẬT KÝ SỰ KIỆN -->
+            <section class="card">
+                <div class="section-header">
+                    <h2 class="section-title">Khu vực 7: Nhật ký Sự kiện Hệ thống (Event Logs)</h2>
+                </div>
+
+                <div class="log-toolbar">
+                    <div class="log-filters">
+                        <input
+                            type="text"
+                            class="input-control"
+                            id="logSearchInput"
+                            placeholder="🔍 Tìm kiếm nội dung..."
+                        />
+                        <select class="input-control" id="logTypeFilter">
+                            <option value="ALL">Tất cả loại sự kiện</option>
+                            <option value="INTRUSION">Cảnh báo xâm nhập</option>
+                            <option value="SENSOR_WARN">Cảnh báo ngưỡng cảm biến</option>
+                            <option value="SECURITY_MODE">Điều khiển ARM / DISARM</option>
+                            <option value="BUZZER">Điều khiển Còi báo động</option>
+                            <option value="SYSTEM">Hệ thống & Kết nối</option>
+                        </select>
+                        <select class="input-control" id="logTimeFilter">
+                            <option value="ALL">Mọi thời gian</option>
+                            <option value="15M">15 phút gần đây</option>
+                            <option value="1H">1 giờ gần đây</option>
+                            <option value="TODAY">Trong ngày hôm nay</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; gap: 8px">
+                        <button class="btn btn-arm" id="btnExportCsv" style="padding: 8px 14px">📥 Xuất CSV</button>
+                        <button class="btn btn-buzzer-on" id="btnClearLogs" style="padding: 8px 14px">
+                            🗑️ Xóa nhật ký
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Thời gian</th>
+                                <th>Loại sự kiện</th>
+                                <th>Nội dung chi tiết</th>
+                                <th>Mức độ</th>
+                                <th>Trạng thái xử lý</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- MODAL POPUP CẢNH BÁO XÂM NHẬP NỔI BẬT -->
+        <div class="modal-backdrop" id="intrusionModal">
+            <div class="modal-box modal-danger">
+                <h2 style="color: var(--danger-red); margin-bottom: 10px; display: flex; align-items: center; gap: 8px">
+                    🚨 CẢNH BÁO XÂM NHẬP KHẨN CẤP!
+                </h2>
+                <p style="font-size: 0.95rem; margin-bottom: 14px" id="modalAlertMessage">
+                    Phát hiện chuyển động và cửa đang mở khi hệ thống ở chế độ bảo vệ (ARM).
+                </p>
+                <div
+                    style="
+                        background: #fef2f2;
+                        border: 1px solid #fecaca;
+                        padding: 12px;
+                        border-radius: 8px;
+                        margin-bottom: 16px;
+                        font-size: 0.85rem;
+                    "
+                >
+                    <div><b>Thời gian phát hiện:</b> <span id="modalAlertTime">--</span></div>
+                    <div>
+                        <b>Mức độ nghiêm trọng:</b>
+                        <span id="modalAlertLevel" style="color: var(--danger-red); font-weight: 700">HIGH</span>
+                    </div>
+                    <div><b>Thông tin camera / ảnh:</b> <span id="modalSnapStatus">Đang kiểm tra camera...</span></div>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap">
+                    <button class="btn btn-buzzer-off" id="btnModalMuteBrowser">🔇 Tắt âm trình duyệt</button>
+                    <button class="btn btn-arm" id="btnModalAcknowledge">✅ Xác nhận đã xử lý cảnh báo</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL CẤU HÌNH HỆ THỐNG -->
+        <div class="modal-backdrop" id="configModal">
+            <div class="modal-box">
+                <h3 style="margin-bottom: 14px; color: var(--navy-900)">⚙️ Cấu hình Kết nối Hệ thống IoT</h3>
+
+                <div class="form-group">
+                    <label>1. MQTT WebSocket URL (Mosquitto Broker trên máy 192.168.1.105):</label>
+                    <input type="text" id="cfgMqttUrl" placeholder="ws://192.168.1.105:9001" />
+                    <small style="color: var(--text-muted); font-size: 0.75rem">
+                        Lưu ý: Trình duyệt kết nối MQTT qua WebSocket (mặc định port 9001 hoặc 8083). Port 1883 là giao
+                        thức TCP cho ESP32/Node-RED.
+                    </small>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>MQTT Username (Bỏ trống nếu không dùng):</label>
+                        <input type="text" id="cfgMqttUser" placeholder="Tùy chọn" />
+                    </div>
+                    <div class="form-group">
+                        <label>MQTT Password:</label>
+                        <input type="password" id="cfgMqttPass" placeholder="Tùy chọn" />
+                    </div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 14px 0" />
+
+                <div class="form-group">
+                    <label>2. Địa chỉ Stream ESP32-CAM (MJPEG):</label>
+                    <input type="text" id="cfgCamStreamUrl" placeholder="Ví dụ: http://192.168.1.120:81/stream" />
+                </div>
+                <div class="form-group">
+                    <label>Địa chỉ chụp ảnh tĩnh ESP32-CAM (Capture URL - Tùy chọn):</label>
+                    <input type="text" id="cfgCamCaptureUrl" placeholder="Ví dụ: http://192.168.1.120/capture" />
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 14px 0" />
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>3. Grafana Base URL:</label>
+                        <input type="text" id="cfgGrafanaUrl" placeholder="http://192.168.1.105:3000" />
+                    </div>
+                    <div class="form-group">
+                        <label>Grafana Dashboard UID & Slug:</label>
+                        <input type="text" id="cfgGrafanaUid" placeholder="Ví dụ: d-solo/abcd1234/room-security" />
+                    </div>
+                </div>
+
+                <div class="form-row-2">
+                    <div class="form-group">
+                        <label>Panel ID Nhiệt độ / Độ ẩm / Gas:</label>
+                        <input type="text" id="cfgGrafanaPanels1" placeholder="1,2,3" />
+                    </div>
+                    <div class="form-group">
+                        <label>Panel ID Ánh sáng / Chuyển động:</label>
+                        <input type="text" id="cfgGrafanaPanels2" placeholder="4,5" />
+                    </div>
+                    <div class="form-group" style="margin-top: 12px">
+                        <label for="cfgGrafanaPanelsExtra"
+                            >Panel ID mở rộng: Gas MQ-2, PIR, Cửa (để trống nếu chưa có)</label
+                        >
+                        <input type="text" id="cfgGrafanaPanelsExtra" placeholder="Ví dụ: 6,7,8" />
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px">
+                    <button class="btn btn-buzzer-off" id="btnCloseConfig">Đóng</button>
+                    <button class="btn btn-arm" id="btnSaveConfig">💾 Lưu & Áp dụng ngay</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                "use strict";
+
+                /* =========================================================================
+                 * 1. GIỮ NGUYÊN 4 TOPIC MQTT BẮT BUỘC CỦA HỆ THỐNG
+                 * ========================================================================= */
+                const TOPICS = Object.freeze({
+                    SENSOR_DATA: "nhom20/phong1/sensors",
+                    SECURITY_MODE: "room/security/mode",
+                    SECURITY_ALERT: "nhom20/phong1/events",
+                    CONTROL_BUZZER: "room/control/buzzer",
+                    ESP32_COMMAND: "nhom20/phong1/cmd",
+                });
+
+                const STORAGE_KEY_CFG = "iot_nhom20_cfg_v3";
+                const STORAGE_KEY_LOGS = "iot_room_security_logs_v2";
+                const STALE_THRESHOLD_MS = 15000; // 15 giây không có gói tin -> cảnh báo dữ liệu cũ
+                const CMD_TIMEOUT_MS = 6000; // 6 giây chờ phản hồi xác nhận lệnh
+
+                const defaultConfig = {
+                    mqttWsUrl: "ws://127.0.0.1:9001",
+                    mqttUser: "",
+                    mqttPass: "",
+                    camStreamUrl: "http://172.20.10.4:81/stream",
+                    camCaptureUrl: "http://172.20.10.4/capture",
+                    grafanaBaseUrl: "http://localhost:3000",
+                    grafanaPath: "d-solo/admt4qd/nhom20", // Dashboard Nhóm 20
+                    panelIds: {
+                        temp: "1",
+                        hum: "2",
+                        gas: "3",
+                        light: "4",
+                        motion: "5",
+                        gasRaw: "",
+                        motionExtra: "",
+                        doorExtra: "",
+                    },
+                };
+
+                let appConfig = loadConfig();
+                let mqttClient = null;
+                let isMqttConnected = false;
+                let lastSensorTimestamp = 0;
+                let isCamOnline = false;
+                // Mức nền gas được xác định từ đúng 20 mẫu hợp lệ đầu tiên sau khi mở trang.
+                const GAS_BASELINE_SAMPLES = 20;
+                const GAS_ALERT_DELTA_MV = 500;
+                const TEMP_ALERT_C = 45;
+                const gasBaselineSamples = [];
+                let gasBaseline = null;
+                let gasAlertActive = false;
+                let tempAlertActive = false;
+                let grafanaFromTime = "now-1h";
+
+                // Trạng thái thực tế chỉ được cập nhật khi nhận bản tin từ MQTT
+                let actualState = {
+                    securityMode: null, // "ARM" | "DISARM" | null
+                    buzzer: null, // "ON" | "OFF" | null
+                    nodeRedConfirmed: false,
+                    unhandledIntrusion: false,
+                };
+
+                // Quản lý trạng thái chờ phản hồi lệnh (Command Pending)
+                let pendingCommands = {
+                    mode: { waiting: false, target: null, timer: null },
+                    buzzer: { waiting: false, target: null, timer: null },
+                };
+
+                // Âm thanh cảnh báo Web Audio API
+                let audioCtx = null;
+                let alarmInterval = null;
+                let isBrowserSoundPlaying = false;
+
+                // Danh sách Snapshot và Nhật ký
+                const SNAP_SERVER = "http://127.0.0.1:8765";
+                let snapshots = [];
+                let eventLogs = loadLogs();
+
+                /* =========================================================================
+                 * 2. KHỞI TẠO VÀ TIỆN ÍCH AN TOÀN DỮ LIỆU
+                 * ========================================================================= */
+                function loadConfig() {
+                    try {
+                        const raw = localStorage.getItem(STORAGE_KEY_CFG);
+                        if (!raw) return JSON.parse(JSON.stringify(defaultConfig));
+                        const parsed = JSON.parse(raw);
+                        return Object.assign({}, defaultConfig, parsed, {
+                            panelIds: Object.assign({}, defaultConfig.panelIds, parsed.panelIds || {}),
+                        });
+                    } catch (err) {
+                        return JSON.parse(JSON.stringify(defaultConfig));
+                    }
+                }
+
+                function saveConfig() {
+                    try {
+                        localStorage.setItem(STORAGE_KEY_CFG, JSON.stringify(appConfig));
+                    } catch (err) {
+                        console.error("Không thể lưu cấu hình:", err);
+                    }
+                }
+
+                function loadLogs() {
+                    try {
+                        const raw = localStorage.getItem(STORAGE_KEY_LOGS);
+                        if (!raw) return [];
+                        const arr = JSON.parse(raw);
+                        return Array.isArray(arr) ? arr : [];
+                    } catch (err) {
+                        return [];
+                    }
+                }
+
+                function saveLogs() {
+                    try {
+                        localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(eventLogs.slice(0, 300)));
+                    } catch (err) {
+                        console.error("Không thể lưu nhật ký:", err);
+                    }
+                }
+
+                function formatTime(dateObj) {
+                    if (!(dateObj instanceof Date) || isNaN(dateObj)) return "--:--:--";
+                    return dateObj.toLocaleTimeString("vi-VN", { hour12: false });
+                }
+
+                function formatDateTime(dateObj) {
+                    if (!(dateObj instanceof Date) || isNaN(dateObj)) return "--";
+                    return dateObj.toLocaleString("vi-VN", { hour12: false });
+                }
+
+                function setText(id, text) {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = String(text);
+                }
+
+                /* =========================================================================
+                 * 3. QUẢN LÝ NHẬT KÝ SỰ KIỆN (KHU VỰC 7)
+                 * ========================================================================= */
+                function addLog(type, message, severity, isAlertNeedAck = false) {
+                    const now = new Date();
+                    const item = {
+                        id: "LOG_" + now.getTime() + "_" + Math.random().toString(36).substring(2, 6),
+                        timestamp: now.toISOString(),
+                        type: type, // INTRUSION | SENSOR_WARN | SECURITY_MODE | BUZZER | SYSTEM
+                        message: String(message),
+                        severity: severity, // HIGH | MEDIUM | INFO
+                        handled: !isAlertNeedAck,
+                    };
+                    eventLogs.unshift(item);
+                    if (eventLogs.length > 300) eventLogs.pop();
+                    saveLogs();
+                    renderLogs();
+                    updateTodayAlertCounter();
+                    return item.id;
+                }
+
+                function acknowledgeAllAlerts() {
+                    let count = 0;
+                    eventLogs.forEach((item) => {
+                        if (!item.handled) {
+                            item.handled = true;
+                            count++;
+                        }
+                    });
+                    actualState.unhandledIntrusion = false;
+                    stopBrowserAlarmSound();
+                    saveLogs();
+                    renderLogs();
+                    updateAlertCenterUI();
+                    updateOverallSecurityBadge();
+                    document.getElementById("intrusionModal").classList.remove("show");
+                    if (count > 0) {
+                        addLog("SYSTEM", "Người vận hành đã xác nhận xử lý " + count + " cảnh báo.", "INFO", false);
+                    }
+                }
+
+                function acknowledgeSingleLog(logId) {
+                    const found = eventLogs.find((x) => x.id === logId);
+                    if (found && !found.handled) {
+                        found.handled = true;
+                        saveLogs();
+                        renderLogs();
+                        const stillUnhandled = eventLogs.some(
+                            (x) => !x.handled && (x.type === "INTRUSION" || x.type === "SENSOR_WARN"),
+                        );
+                        if (!stillUnhandled) {
+                            actualState.unhandledIntrusion = false;
+                            stopBrowserAlarmSound();
+                            updateAlertCenterUI();
+                            updateOverallSecurityBadge();
+                        }
+                    }
+                }
+
+                function updateTodayAlertCounter() {
+                    const todayStr = new Date().toDateString();
+                    const count = eventLogs.filter((x) => {
+                        const d = new Date(x.timestamp);
+                        return d.toDateString() === todayStr && (x.type === "INTRUSION" || x.type === "SENSOR_WARN");
+                    }).length;
+                    setText("txtAlertCountToday", count + " cảnh báo");
+                }
+
+                function renderLogs() {
+                    const tbody = document.getElementById("logTableBody");
+                    if (!tbody) return;
+                    tbody.textContent = "";
+
+                    const keyword = (document.getElementById("logSearchInput").value || "").trim().toLowerCase();
+                    const typeFilter = document.getElementById("logTypeFilter").value;
+                    const timeFilter = document.getElementById("logTimeFilter").value;
+                    const nowMs = Date.now();
+
+                    const filtered = eventLogs.filter((item) => {
+                        if (typeFilter !== "ALL" && item.type !== typeFilter) return false;
+                        if (
+                            keyword &&
+                            !item.message.toLowerCase().includes(keyword) &&
+                            !item.type.toLowerCase().includes(keyword)
+                        ) {
+                            return false;
+                        }
+                        if (timeFilter !== "ALL") {
+                            const itemMs = new Date(item.timestamp).getTime();
+                            if (timeFilter === "15M" && nowMs - itemMs > 15 * 60 * 1000) return false;
+                            if (timeFilter === "1H" && nowMs - itemMs > 60 * 60 * 1000) return false;
+                            if (
+                                timeFilter === "TODAY" &&
+                                new Date(item.timestamp).toDateString() !== new Date().toDateString()
+                            )
+                                return false;
+                        }
+                        return true;
+                    });
+
+                    if (filtered.length === 0) {
+                        const tr = document.createElement("tr");
+                        const td = document.createElement("td");
+                        td.colSpan = 6;
+                        td.style.textAlign = "center";
+                        td.style.color = "#64748b";
+                        td.textContent = "Không có sự kiện nào khớp với bộ lọc hiện tại.";
+                        tr.appendChild(td);
+                        tbody.appendChild(tr);
+                        return;
+                    }
+
+                    filtered.forEach((item) => {
+                        const tr = document.createElement("tr");
+                        if (!item.handled) tr.className = "row-unhandled";
+
+                        const tdTime = document.createElement("td");
+                        tdTime.textContent = formatDateTime(new Date(item.timestamp));
+
+                        const tdType = document.createElement("td");
+                        tdType.textContent = item.type;
+
+                        const tdMsg = document.createElement("td");
+                        tdMsg.textContent = item.message;
+
+                        const tdSev = document.createElement("td");
+                        const badgeSev = document.createElement("span");
+                        badgeSev.className =
+                            "badge " +
+                            (item.severity === "HIGH"
+                                ? "badge-danger"
+                                : item.severity === "MEDIUM"
+                                  ? "badge-warn"
+                                  : "badge-neutral");
+                        badgeSev.textContent = item.severity;
+                        tdSev.appendChild(badgeSev);
+
+                        const tdStatus = document.createElement("td");
+                        const badgeSt = document.createElement("span");
+                        badgeSt.className = "badge " + (item.handled ? "badge-safe" : "badge-danger");
+                        badgeSt.textContent = item.handled ? "Đã xử lý" : "Cảnh báo mới";
+                        tdStatus.appendChild(badgeSt);
+
+                        const tdAction = document.createElement("td");
+                        if (!item.handled) {
+                            const btnAck = document.createElement("button");
+                            btnAck.className = "btn btn-arm";
+                            btnAck.style.padding = "4px 10px";
+                            btnAck.style.fontSize = "0.75rem";
+                            btnAck.textContent = "Xác nhận";
+                            btnAck.addEventListener("click", () => acknowledgeSingleLog(item.id));
+                            tdAction.appendChild(btnAck);
+                        } else {
+                            // Giữ cột thao tác để hiển thị nút Xem ảnh khi có ảnh.
+                        }
+
+                        if (item.snapshotFile) {
+                            const view = document.createElement("button");
+                            view.className = "btn btn-arm";
+                            view.style.cssText = "padding:4px 10px;font-size:.75rem;margin:3px";
+                            view.textContent = "📷 Xem ảnh";
+                            view.addEventListener("click", () => {
+                                window.open(
+                                    SNAP_SERVER + "/image?file=" + encodeURIComponent(item.snapshotFile),
+                                    "_blank",
+                                    "noopener",
+                                );
+                            });
+                            tdAction.appendChild(view);
+                        } else if (item.snapshotError) {
+                            const note = document.createElement("small");
+                            note.textContent = "Ảnh lỗi";
+                            note.title = item.snapshotError;
+                            tdAction.appendChild(note);
+                        }
+
+                        tr.appendChild(tdTime);
+                        tr.appendChild(tdType);
+                        tr.appendChild(tdMsg);
+                        tr.appendChild(tdSev);
+                        tr.appendChild(tdStatus);
+                        tr.appendChild(tdAction);
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                /* =========================================================================
+                 * 4. ÂM THANH CẢNH BÁO TRÌNH DUYỆT (WEB AUDIO API)
+                 * ========================================================================= */
+                function initAudioContext() {
+                    try {
+                        if (!audioCtx) {
+                            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                            audioCtx = new AudioContextClass();
+                        }
+                        if (audioCtx.state === "suspended") {
+                            audioCtx.resume();
+                        }
+                        setText("btnEnableAudio", "🔊 Âm báo: Đã sẵn sàng");
+                    } catch (err) {
+                        console.warn("Trình duyệt không hỗ trợ Web Audio API:", err);
+                    }
+                }
+
+                function playBeepTone() {
+                    try {
+                        if (!audioCtx) initAudioContext();
+                        if (!audioCtx || audioCtx.state !== "running") return;
+
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = "sawtooth";
+                        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                        osc.frequency.setValueAtTime(660, audioCtx.currentTime + 0.18);
+
+                        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + 0.36);
+                    } catch (err) {
+                        console.warn("Không thể phát âm cảnh báo:", err);
+                    }
+                }
+
+                function startBrowserAlarmSound() {
+                    if (isBrowserSoundPlaying) return;
+                    isBrowserSoundPlaying = true;
+                    playBeepTone();
+                    alarmInterval = setInterval(playBeepTone, 700);
+                    document.getElementById("btnMuteBrowserSound").style.display = "inline-flex";
+                }
+
+                function stopBrowserAlarmSound() {
+                    isBrowserSoundPlaying = false;
+                    if (alarmInterval) {
+                        clearInterval(alarmInterval);
+                        alarmInterval = null;
+                    }
+                    document.getElementById("btnMuteBrowserSound").style.display = "none";
+                }
+
+                /* =========================================================================
+                 * 5. XỬ LÝ DỮ LIỆU CẢM BIẾN (KHU VỰC 2) & KIỂM TRA DỮ LIỆU CŨ
+                 * ========================================================================= */
+                function resetSensorCardToEmpty(cardId, valId, statusId) {
+                    const card = document.getElementById(cardId);
+                    if (card) card.className = "sensor-card";
+                    setText(valId, "--");
+                    const st = document.getElementById(statusId);
+                    if (st) {
+                        st.className = "badge badge-neutral";
+                        st.textContent = "Chưa có dữ liệu";
+                    }
+                }
+
+                function handleSensorDataMessage(rawPayload) {
+                    let data;
+                    try {
+                        data = JSON.parse(rawPayload);
+                    } catch (err) {
+                        addLog(
+                            "SYSTEM",
+                            "Lỗi JSON trên topic nhom20/phong1/sensors: " + String(rawPayload).slice(0, 80),
+                            "MEDIUM",
+                            false,
+                        );
+                        return;
+                    }
+
+                    if (!data || typeof data !== "object") return;
+
+                    const now = new Date();
+                    const timeStr = formatTime(now);
+                    lastSensorTimestamp = now.getTime();
+
+                    // Chế độ bảo vệ lấy từ chính ESP32 (trường "armed", gửi mỗi 2 giây)
+                    if (typeof data.armed === "boolean") {
+                        const m = data.armed ? "ARM" : "DISARM";
+                        if (m !== actualState.securityMode || pendingCommands.mode.waiting)
+                            handleSecurityModeFeedback(m);
+                    }
+
+                    // Cập nhật trạng thái ESP32 Online
+                    const dotEsp = document.getElementById("dotEsp");
+                    if (dotEsp) dotEsp.className = "dot dot-online";
+                    setText("txtEspStatus", "Đang gửi dữ liệu (Online)");
+                    setText("txtLastUpdate", timeStr);
+
+                    // 1. Nhiệt độ: cảnh báo một lần mỗi đợt >= 38 °C.
+                    if (typeof data.temp === "number" && Number.isFinite(data.temp)) {
+                        const t = Number(data.temp.toFixed(1));
+                        setText("valTemp", t);
+                        setText("timeTemp", timeStr);
+                        const card = document.getElementById("cardTemp");
+                        const st = document.getElementById("statusTemp");
+                        if (t >= TEMP_ALERT_C) {
+                            card.className = "sensor-card status-danger";
+                            st.className = "badge badge-danger";
+                            st.textContent = "Nhiệt độ cao!";
+                            if (!tempAlertActive) {
+                                tempAlertActive = true;
+                                showEnvironmentalAlert(
+                                    "NHIỆT ĐỘ CAO",
+                                    `Nhiệt độ ${t} °C đạt/vượt ngưỡng ${TEMP_ALERT_C} °C.`,
+                                    "HIGH",
+                                );
+                            }
+                        } else {
+                            tempAlertActive = false;
+                            if (t >= 33) {
+                                card.className = "sensor-card status-warn";
+                                st.className = "badge badge-warn";
+                                st.textContent = "Khá nóng";
+                            } else {
+                                card.className = "sensor-card status-safe";
+                                st.className = "badge badge-safe";
+                                st.textContent = "Bình thường";
+                            }
+                        }
+                    }
+
+                    // 2. Âm thanh: ESP32 hiện gửi trường sound, không gửi humidity
+                    if (typeof data.sound === "number" && Number.isFinite(data.sound)) {
+                        setText("valHum", Math.round(data.sound));
+                        setText("timeHum", timeStr);
+                        document.getElementById("cardHum").className = "sensor-card status-safe";
+                        const st = document.getElementById("statusHum");
+                        st.className = "badge badge-safe";
+                        st.textContent = "Đang nhận dữ liệu";
+                    }
+
+                    // 3. Gas MQ-2: trung bình 20 mẫu đầu làm nền, từ mẫu 21 mới so sánh.
+                    if (typeof data.gas_mv === "number" && Number.isFinite(data.gas_mv)) {
+                        const g = data.gas_mv;
+                        setText("valGas", Math.round(g));
+                        setText("timeGas", timeStr);
+                        const card = document.getElementById("cardGas");
+                        const st = document.getElementById("statusGas");
+                        if (gasBaseline === null) {
+                            gasBaselineSamples.push(g);
+                            card.className = "sensor-card status-warn";
+                            st.className = "badge badge-warn";
+                            st.textContent = `Đo nền ${gasBaselineSamples.length}/${GAS_BASELINE_SAMPLES}`;
+                            if (gasBaselineSamples.length === GAS_BASELINE_SAMPLES) {
+                                gasBaseline = gasBaselineSamples.reduce((sum, x) => sum + x, 0) / GAS_BASELINE_SAMPLES;
+                                st.textContent = `Nền ${gasBaseline.toFixed(0)} mV · Chờ mẫu 21`;
+                                addLog(
+                                    "SYSTEM",
+                                    `Đã đo mức nền gas từ 20 mẫu: ${gasBaseline.toFixed(1)} mV; ngưỡng cảnh báo > ${(gasBaseline + GAS_ALERT_DELTA_MV).toFixed(1)} mV.`,
+                                    "INFO",
+                                    false,
+                                );
+                            }
+                        } else if (g > gasBaseline + GAS_ALERT_DELTA_MV) {
+                            card.className = "sensor-card status-danger";
+                            st.className = "badge badge-danger";
+                            st.textContent = `Vượt nền +${(g - gasBaseline).toFixed(0)} mV!`;
+                            if (!gasAlertActive) {
+                                gasAlertActive = true;
+                                showEnvironmentalAlert(
+                                    "CẢNH BÁO KHÍ GAS",
+                                    `Gas ${g.toFixed(0)} mV, mức nền ${gasBaseline.toFixed(0)} mV; vượt nền ${(g - gasBaseline).toFixed(0)} mV (> ${GAS_ALERT_DELTA_MV} mV).`,
+                                    "HIGH",
+                                );
+                            }
+                        } else {
+                            gasAlertActive = false;
+                            card.className = "sensor-card status-safe";
+                            st.className = "badge badge-safe";
+                            st.textContent = `An toàn · nền ${gasBaseline.toFixed(0)} mV`;
+                        }
+                    }
+
+                    // 4. Trạng thái cửa (door: "open" | "closed")
+                    if (typeof data.door_open === "boolean") {
+                        const isOpen = data.door_open;
+                        setText("valDoor", isOpen ? "MỞ (OPEN)" : "ĐÓNG (CLOSED)");
+                        setText("timeDoor", timeStr);
+                        const card = document.getElementById("cardDoor");
+                        const st = document.getElementById("statusDoor");
+                        if (isOpen) {
+                            const isArmed = actualState.securityMode === "ARM";
+                            card.className = isArmed ? "sensor-card status-danger" : "sensor-card status-warn";
+                            st.className = isArmed ? "badge badge-danger" : "badge badge-warn";
+                            st.textContent = isArmed ? "Mở khi đang ARM!" : "Cửa đang mở";
+                        } else {
+                            card.className = "sensor-card status-safe";
+                            st.className = "badge badge-safe";
+                            st.textContent = "Cửa đã đóng kín";
+                        }
+                    }
+
+                    // 5. Chuyển động (motion: true | false)
+                    if (typeof data.motion === "boolean") {
+                        setText("valMotion", data.motion ? "CÓ NGƯỜI" : "KHÔNG");
+                        setText("timeMotion", timeStr);
+                        const card = document.getElementById("cardMotion");
+                        const st = document.getElementById("statusMotion");
+                        if (data.motion) {
+                            const isArmed = actualState.securityMode === "ARM";
+                            card.className = isArmed ? "sensor-card status-danger" : "sensor-card status-warn";
+                            st.className = isArmed ? "badge badge-danger" : "badge badge-warn";
+                            st.textContent = isArmed ? "Chuyển động khi ARM!" : "Phát hiện chuyển động";
+                        } else {
+                            card.className = "sensor-card status-safe";
+                            st.className = "badge badge-safe";
+                            st.textContent = "Yên tĩnh";
+                        }
+                    }
+
+                    // 6. Ánh sáng (Chỉ hiển thị khi gói tin thực tế có trường light)
+                    if (typeof data.lux === "number" && Number.isFinite(data.lux)) {
+                        const l = Math.round(data.lux);
+                        setText("valLight", l);
+                        setText("timeLight", timeStr);
+                        const card = document.getElementById("cardLight");
+                        const st = document.getElementById("statusLight");
+                        card.className = "sensor-card status-safe";
+                        st.className = "badge badge-safe";
+                        st.textContent = l < 100 ? "Tối" : "Đủ sáng";
+                    } else {
+                        resetSensorCardToEmpty("cardLight", "valLight", "statusLight");
+                    }
+
+                    updateOverallSecurityBadge();
+                }
+
+                /* =========================================================================
+                 * 6. XỬ LÝ ĐIỀU KHIỂN & PHẢN HỒI XÁC NHẬN (KHU VỰC 3 & 5)
+                 * ========================================================================= */
+                function setCommandFeedback(message, type) {
+                    const box = document.getElementById("cmdFeedbackBox");
+                    if (!box) return;
+                    box.textContent = message;
+                    if (type === "pending") {
+                        box.style.borderLeftColor = "#d97706";
+                        box.style.backgroundColor = "#fffbeb";
+                    } else if (type === "success") {
+                        box.style.borderLeftColor = "#16a34a";
+                        box.style.backgroundColor = "#f0fdf4";
+                    } else if (type === "error") {
+                        box.style.borderLeftColor = "#dc2626";
+                        box.style.backgroundColor = "#fef2f2";
+                    } else {
+                        box.style.borderLeftColor = "#334155";
+                        box.style.backgroundColor = "#f1f5f9";
+                    }
+                }
+
+                function updateControlButtonsLock() {
+                    const disableAll = !isMqttConnected;
+                    document.getElementById("btnArm").disabled = disableAll || pendingCommands.mode.waiting;
+                    document.getElementById("btnDisarm").disabled = disableAll || pendingCommands.mode.waiting;
+                    document.getElementById("btnBuzzerOn").disabled = disableAll || pendingCommands.buzzer.waiting;
+                    document.getElementById("btnBuzzerOff").disabled = disableAll || pendingCommands.buzzer.waiting;
+                }
+
+                // Điều khiển ARM/DISARM: gửi "arm"/"disarm" tới ESP32 qua nhom20/phong1/cmd.
+                // Trạng thái chỉ đổi khi ESP32 xác nhận (sự kiện "armed" hoặc trường "armed" trong dữ liệu cảm biến).
+                function sendSecurityModeCommand(targetMode) {
+                    if (!isMqttConnected || !mqttClient) {
+                        setCommandFeedback("Không thể đổi chế độ: MQTT chưa kết nối.", "error");
+                        return;
+                    }
+                    if (targetMode === "DISARM" && !window.confirm("Tắt cảnh báo xâm nhập trên Web (DISARM)?")) return;
+                    pendingCommands.mode.waiting = true;
+                    pendingCommands.mode.target = targetMode;
+                    updateControlButtonsLock();
+                    setCommandFeedback(
+                        "Đang gửi " +
+                            (targetMode === "ARM" ? "arm" : "disarm") +
+                            " tới ESP32 (" +
+                            TOPICS.ESP32_COMMAND +
+                            ")...",
+                        "pending",
+                    );
+                    if (pendingCommands.mode.timer) clearTimeout(pendingCommands.mode.timer);
+                    pendingCommands.mode.timer = setTimeout(() => {
+                        if (!pendingCommands.mode.waiting) return;
+                        pendingCommands.mode.waiting = false;
+                        updateControlButtonsLock();
+                        setCommandFeedback(
+                            "ESP32 không phản hồi lệnh. Kiểm tra ESP32 có online và đang chạy code bản 6.",
+                            "error",
+                        );
+                    }, CMD_TIMEOUT_MS);
+                    mqttClient.publish(
+                        TOPICS.ESP32_COMMAND,
+                        targetMode === "ARM" ? "arm" : "disarm",
+                        { qos: 1, retain: false },
+                        (err) => {
+                            if (err) {
+                                clearTimeout(pendingCommands.mode.timer);
+                                pendingCommands.mode.waiting = false;
+                                updateControlButtonsLock();
+                                setCommandFeedback("Gửi MQTT thất bại: " + err.message, "error");
+                            }
+                        },
+                    );
+                }
+
+                // Gửi lệnh đến topic thật của ESP32. Không coi MQTT publish là xác nhận còi vật lý.
+                // Firmware ESP32 phải xử lý chuỗi "buzzer_on" và "buzzer_off".
+                function sendBuzzerCommand(targetState) {
+                    if (!isMqttConnected || !mqttClient) {
+                        setCommandFeedback("Không thể điều khiển còi: MQTT chưa kết nối.", "error");
+                        return;
+                    }
+                    if (targetState !== "ON" && targetState !== "OFF") return;
+                    const command = targetState === "ON" ? "buzzer_on" : "buzzer_off";
+                    pendingCommands.buzzer.waiting = true;
+                    pendingCommands.buzzer.target = targetState;
+                    updateControlButtonsLock();
+                    setCommandFeedback("Đang gửi " + command + " tới " + TOPICS.ESP32_COMMAND + "...", "pending");
+                    mqttClient.publish(TOPICS.ESP32_COMMAND, command, { qos: 1, retain: false }, (err) => {
+                        pendingCommands.buzzer.waiting = false;
+                        updateControlButtonsLock();
+                        if (err) {
+                            setCommandFeedback("Không gửi được lệnh còi: " + err.message, "error");
+                            return;
+                        }
+                        const stateLabel = document.getElementById("actualBuzzerState");
+                        if (stateLabel) {
+                            stateLabel.textContent = "Đã gửi " + command + " — chưa xác nhận";
+                            stateLabel.style.color = "var(--warn-yellow)";
+                        }
+                        setCommandFeedback(
+                            "Đã gửi " +
+                                command +
+                                " tới MQTT. Còi vật lý chỉ thay đổi nếu firmware ESP32 xử lý lệnh này; chưa có xác nhận từ thiết bị.",
+                            "success",
+                        );
+                        addLog(
+                            "BUZZER",
+                            "Web gửi lệnh " + command + " tới " + TOPICS.ESP32_COMMAND + " (chưa xác nhận thiết bị)",
+                            "INFO",
+                            false,
+                        );
+                    });
+                }
+
+                function handleSecurityModeFeedback(rawPayload) {
+                    const mode = String(rawPayload).trim().toUpperCase();
+                    if (mode !== "ARM" && mode !== "DISARM") return;
+
+                    actualState.securityMode = mode;
+                    if (mode === "DISARM") {
+                        stopBrowserAlarmSound();
+                        actualState.unhandledIntrusion = false;
+                        document.getElementById("intrusionModal").classList.remove("show");
+                        updateAlertCenterUI();
+                    }
+                    const el = document.getElementById("actualSecurityMode");
+                    if (el) {
+                        el.textContent = mode === "ARM" ? "🔒 ESP32 ĐANG ARM" : "🔓 ESP32 ĐANG DISARM";
+                        el.style.color = mode === "ARM" ? "var(--safe-green)" : "var(--warn-yellow)";
+                    }
+
+                    if (pendingCommands.mode.waiting && pendingCommands.mode.target === mode) {
+                        clearTimeout(pendingCommands.mode.timer);
+                        pendingCommands.mode.waiting = false;
+                        updateControlButtonsLock();
+                        setCommandFeedback(
+                            "ESP32 đã xác nhận chế độ [" +
+                                mode +
+                                "]" +
+                                (mode === "ARM" ? ", có hiệu lực sau 10 giây." : "."),
+                            "success",
+                        );
+                    }
+
+                    addLog("SECURITY_MODE", "ESP32 xác nhận chế độ bảo vệ: " + mode, "INFO", false);
+                    updateOverallSecurityBadge();
+                }
+
+                function handleBuzzerFeedback(rawPayload) {
+                    const state = String(rawPayload).trim().toUpperCase();
+                    if (state !== "ON" && state !== "OFF") return;
+
+                    actualState.buzzer = state;
+                    const el = document.getElementById("actualBuzzerState");
+                    if (el) {
+                        el.textContent =
+                            state === "ON"
+                                ? "MQTT room/control/buzzer: ON (chưa xác nhận ESP32)"
+                                : "MQTT room/control/buzzer: OFF (chưa xác nhận ESP32)";
+                        el.style.color = state === "ON" ? "var(--danger-red)" : "var(--navy-800)";
+                    }
+
+                    // Nếu DISARM mà nhận được lệnh OFF trên room/control/buzzer -> Chứng tỏ Node-RED Set Security Mode đang hoạt động
+                    if (state === "OFF" && actualState.securityMode === "DISARM") {
+                        markNodeRedConfirmed("Node-RED đã phản hồi lệnh khóa còi khi DISARM");
+                    }
+
+                    if (pendingCommands.buzzer.waiting && pendingCommands.buzzer.target === state) {
+                        clearTimeout(pendingCommands.buzzer.timer);
+                        pendingCommands.buzzer.waiting = false;
+                        updateControlButtonsLock();
+                        setCommandFeedback(
+                            "Đã nhận trạng thái trên room/control/buzzer: [" + state + "]; chưa xác nhận còi ESP32.",
+                            "success",
+                        );
+                    }
+
+                    addLog(
+                        "BUZZER",
+                        "Trạng thái còi báo động cập nhật: " + state,
+                        state === "ON" ? "HIGH" : "INFO",
+                        false,
+                    );
+                }
+
+                // Cảnh báo an toàn môi trường: không phụ thuộc chế độ ARM/DISARM.
+                function showEnvironmentalAlert(kind, message, severity) {
+                    actualState.unhandledIntrusion = true; // dùng cờ cảnh báo chung cho banner và nút xác nhận
+                    const logId = addLog("SENSOR_WARN", `${kind}: ${message}`, severity, true);
+                    captureSnapshot("AUTO_ENVIRONMENT", logId);
+                    startBrowserAlarmSound();
+                    const title = document.querySelector("#intrusionModal h2");
+                    if (title) title.textContent = `🚨 ${kind}!`;
+                    setText("modalAlertMessage", message);
+                    setText("modalAlertTime", formatDateTime(new Date()));
+                    setText("modalAlertLevel", severity);
+                    setText("modalSnapStatus", "Đang chụp và lưu ảnh tại C:\\AnhAnNinh...");
+                    document.getElementById("intrusionModal").classList.add("show");
+                    updateAlertCenterUI(`${kind}: ${message}`, formatDateTime(new Date()));
+                    updateOverallSecurityBadge();
+                }
+
+                function handleSecurityAlertMessage(rawPayload) {
+                    let alertObj = null;
+                    try {
+                        alertObj = JSON.parse(rawPayload);
+                    } catch (err) {
+                        alertObj = {
+                            type: "intrusion",
+                            level: "high",
+                            message: String(rawPayload),
+                            timestamp: new Date().toISOString(),
+                        };
+                    }
+
+                    // Nhận được gói tin từ nhom20/phong1/events chứng tỏ Node-RED Detect Intrusion đã chạy
+                    markNodeRedConfirmed("Node-RED đang hoạt động (Xác nhận qua luồng cảnh báo)");
+
+                    // ESP32 vừa đổi chế độ bảo vệ -> cập nhật ngay, không chờ gói dữ liệu 2 giây
+                    if (alertObj.type === "armed") {
+                        handleSecurityModeFeedback(alertObj.detail === "on" ? "ARM" : "DISARM");
+                        return;
+                    }
+                    // Chỉ sự kiện "alarm" (do ESP32 quyết định theo chế độ bảo vệ) mới là cảnh báo thật.
+                    // Các sự kiện khác (motion, door, gas on/off, buzzer, alarm stopped) chỉ ghi nhật ký.
+                    if (!(alertObj.type === "alarm" && alertObj.detail !== "stopped")) {
+                        addLog(
+                            "SYSTEM",
+                            "Sự kiện: " + (alertObj.type || "") + " " + (alertObj.detail || ""),
+                            "INFO",
+                            false,
+                        );
+                        return;
+                    }
+
+                    const msgText =
+                        alertObj.message || (alertObj.type || "Sự kiện") + ": " + (alertObj.detail || "phát hiện");
+                    const levelText = String(alertObj.level || "info").toUpperCase();
+                    const timeText = alertObj.timestamp
+                        ? formatDateTime(new Date(alertObj.timestamp))
+                        : formatDateTime(new Date());
+
+                    // DISARM chỉ tắt cảnh báo trên trình duyệt; vẫn ghi nhật ký sự kiện.
+                    if (actualState.securityMode !== "ARM") {
+                        addLog("SYSTEM", "Sự kiện khi Web chưa ARM: " + msgText, "INFO", false);
+                        return;
+                    }
+                    actualState.unhandledIntrusion = true;
+                    const logId = addLog("INTRUSION", msgText + " (Mức độ: " + levelText + ")", "HIGH", true);
+
+                    // 1. Bật âm thanh cảnh báo trên trình duyệt
+                    startBrowserAlarmSound();
+
+                    // Chụp và lưu tự động qua dịch vụ Windows, liên kết đúng Event Log.
+                    const snapResultText = "Đang chụp và lưu ảnh tại C:\\AnhAnNinh...";
+                    captureSnapshot("AUTO_INTRUSION", logId);
+
+                    const intrusionTitle = document.querySelector("#intrusionModal h2");
+                    if (intrusionTitle) intrusionTitle.textContent = "🚨 CẢNH BÁO XÂM NHẬP KHẨN CẤP!";
+
+                    // 3. Hiển thị Popup nổi bật và cập nhật Banner Trung tâm cảnh báo
+                    setText("modalAlertMessage", msgText);
+                    setText("modalAlertTime", timeText);
+                    setText("modalAlertLevel", levelText);
+                    setText("modalSnapStatus", snapResultText);
+                    document.getElementById("intrusionModal").classList.add("show");
+
+                    updateAlertCenterUI(msgText, timeText);
+                    updateOverallSecurityBadge();
+                }
+
+                function updateAlertCenterUI(latestMsg, latestTime) {
+                    const banner = document.getElementById("alertBanner");
+                    const btnAck = document.getElementById("btnAckBannerAlert");
+                    if (actualState.unhandledIntrusion) {
+                        banner.classList.add("active-danger");
+                        setText("alertBannerTitle", "🚨 CẢNH BÁO AN NINH / MÔI TRƯỜNG CHƯA XỬ LÝ!");
+                        setText(
+                            "alertBannerDesc",
+                            "Nội dung: " +
+                                (latestMsg || "Phát hiện xâm nhập!") +
+                                " | Thời điểm: " +
+                                (latestTime || formatDateTime(new Date())),
+                        );
+                        btnAck.style.display = "inline-flex";
+                    } else {
+                        banner.classList.remove("active-danger");
+                        setText("alertBannerTitle", "🛡️ Trung tâm Cảnh báo: Hệ thống bình thường");
+                        setText(
+                            "alertBannerDesc",
+                            "Tất cả cảnh báo đã được xác nhận xử lý. Hệ thống đang giám sát liên tục.",
+                        );
+                        btnAck.style.display = "none";
+                    }
+                }
+
+                function markNodeRedConfirmed(reasonText) {
+                    actualState.nodeRedConfirmed = true;
+                    const dot = document.getElementById("dotNodeRed");
+                    if (dot) dot.className = "dot dot-online";
+                    setText("txtNodeRedStatus", "Đã xác nhận hoạt động");
+                    document.getElementById("txtNodeRedStatus").title = reasonText;
+                }
+
+                function updateOverallSecurityBadge() {
+                    const badge = document.getElementById("badgeOverallSecurity");
+                    if (!badge) return;
+
+                    if (!isMqttConnected) {
+                        badge.className = "badge badge-danger";
+                        badge.textContent = "MẤT KẾT NỐI MQTT";
+                        return;
+                    }
+
+                    if (actualState.unhandledIntrusion) {
+                        badge.className = "badge badge-danger";
+                        badge.textContent = "CÓ CẢNH BÁO CHƯA XỬ LÝ!";
+                        return;
+                    }
+
+                    if (actualState.securityMode === "ARM") {
+                        badge.className = "badge badge-safe";
+                        badge.textContent = "ESP32 ĐANG ARM";
+                    } else if (actualState.securityMode === "DISARM") {
+                        badge.className = "badge badge-warn";
+                        badge.textContent = "ESP32 ĐANG DISARM";
+                    } else {
+                        badge.className = "badge badge-neutral";
+                        badge.textContent = "CHỜ XÁC NHẬN CHẾ ĐỘ";
+                    }
+                }
+
+                /* =========================================================================
+                 * 7. KẾT NỐI MQTT WEBSOCKET & TỰ ĐỘNG KẾT NỐI LẠI
+                 * ========================================================================= */
+                function connectMqtt() {
+                    if (mqttClient) {
+                        try {
+                            mqttClient.end(true);
+                        } catch (e) {}
+                        mqttClient = null;
+                    }
+
+                    const wsUrl = (appConfig.mqttWsUrl || "").trim();
+                    if (!wsUrl) {
+                        setText("txtMqttStatus", "Chưa cấu hình URL");
+                        return;
+                    }
+
+                    setText("txtMqttStatus", "Đang kết nối...");
+                    document.getElementById("dotMqtt").className = "dot dot-warn";
+
+                    const options = {
+                        clientId: "SmartRoomDashboard_" + Math.random().toString(16).substring(2, 8),
+                        clean: true,
+                        connectTimeout: 5000,
+                        reconnectPeriod: 3000,
+                    };
+
+                    if (appConfig.mqttUser) options.username = appConfig.mqttUser;
+                    if (appConfig.mqttPass) options.password = appConfig.mqttPass;
+
+                    try {
+                        mqttClient = mqtt.connect(wsUrl, options);
+                    } catch (err) {
+                        setText("txtMqttStatus", "Lỗi khởi tạo WS");
+                        addLog("SYSTEM", "Không thể khởi tạo kết nối MQTT WebSocket: " + err.message, "HIGH", false);
+                        return;
+                    }
+
+                    mqttClient.on("connect", () => {
+                        isMqttConnected = true;
+                        document.getElementById("dotMqtt").className = "dot dot-online";
+                        setText("txtMqttStatus", "Đã kết nối (" + wsUrl + ")");
+                        updateControlButtonsLock();
+                        updateOverallSecurityBadge();
+                        setCommandFeedback("Kết nối MQTT thành công. Bảng điều khiển đã sẵn sàng.", "success");
+
+                        // Subscribe các topic cần dùng (chế độ bảo vệ lấy từ ESP32, không dùng room/security/mode nữa)
+                        mqttClient.subscribe(
+                            [TOPICS.SENSOR_DATA, TOPICS.SECURITY_ALERT, TOPICS.CONTROL_BUZZER],
+                            { qos: 0 },
+                            (err) => {
+                                if (err) {
+                                    addLog("SYSTEM", "Lỗi subscribe topic MQTT: " + err.message, "HIGH", false);
+                                } else {
+                                    addLog(
+                                        "SYSTEM",
+                                        "Đã kết nối MQTT Broker và đăng ký 4 topic hệ thống thành công.",
+                                        "INFO",
+                                        false,
+                                    );
+                                }
+                            },
+                        );
+                    });
+
+                    mqttClient.on("reconnect", () => {
+                        setText("txtMqttStatus", "Đang kết nối lại...");
+                        document.getElementById("dotMqtt").className = "dot dot-warn";
+                    });
+
+                    mqttClient.on("close", () => {
+                        if (isMqttConnected) {
+                            addLog("SYSTEM", "Mất kết nối tới MQTT Broker (WebSocket closed).", "MEDIUM", false);
+                        }
+                        isMqttConnected = false;
+                        document.getElementById("dotMqtt").className = "dot dot-offline";
+                        setText("txtMqttStatus", "Mất kết nối MQTT");
+                        updateControlButtonsLock();
+                        updateOverallSecurityBadge();
+                        setCommandFeedback("Đã khóa điều khiển do mất kết nối MQTT Broker.", "error");
+                    });
+
+                    mqttClient.on("error", (err) => {
+                        setText("txtMqttStatus", "Lỗi MQTT: " + err.message);
+                        console.warn("MQTT Error:", err);
+                    });
+
+                    mqttClient.on("message", (topic, payloadBuffer) => {
+                        const rawStr = payloadBuffer ? payloadBuffer.toString("utf-8") : "";
+                        try {
+                            if (topic === TOPICS.SENSOR_DATA) {
+                                handleSensorDataMessage(rawStr);
+                            } else if (topic === TOPICS.CONTROL_BUZZER) {
+                                handleBuzzerFeedback(rawStr);
+                            } else if (topic === TOPICS.SECURITY_ALERT) {
+                                handleSecurityAlertMessage(rawStr);
+                            }
+                        } catch (err) {
+                            console.error("Lỗi xử lý gói tin MQTT:", err);
+                        }
+                    });
+                }
+
+                /* =========================================================================
+                 * 8. CAMERA ESP32-CAM & SNAPSHOT (KHU VỰC 4)
+                 * ========================================================================= */
+                // MJPEG Arduino CameraWebServer: tải URL gốc bằng iframe.
+                // Không thêm ?t=... vì một số firmware chỉ chấp nhận chính xác /stream.
+                let cameraRotation = 0;
+                try {
+                    cameraRotation = Number(localStorage.getItem("nhom20_camera_rotation") || 0);
+                    if (![0, 90, 180, 270].includes(cameraRotation)) cameraRotation = 0;
+                } catch (e) {
+                    cameraRotation = 0;
+                }
+
+                function applyCameraRotation() {
+                    const viewport = document.querySelector(".cam-viewport");
+                    if (!viewport) return;
+                    const sideways = cameraRotation % 180 !== 0;
+                    // Khung luôn đúng tỷ lệ với hình camera 4:3, kể cả khi xoay 90 độ.
+                    viewport.style.aspectRatio = sideways ? "3 / 4" : "4 / 3";
+                    const w = viewport.clientWidth;
+                    const h = viewport.clientHeight;
+                    ["espCamStream", "espCamIframe"].forEach((id) => {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        el.style.width = (sideways ? h : w) + "px";
+                        el.style.height = (sideways ? w : h) + "px";
+                        el.style.transform = `translate(-50%, -50%) rotate(${cameraRotation}deg)`;
+                    });
+                }
+
+                function rotateCamera(delta) {
+                    cameraRotation = (cameraRotation + delta + 360) % 360;
+                    try {
+                        localStorage.setItem("nhom20_camera_rotation", String(cameraRotation));
+                    } catch (e) {}
+                    applyCameraRotation();
+                }
+
+                window.addEventListener("resize", applyCameraRotation);
+
+                function initCameraStream() {
+                    const imgEl = document.getElementById("espCamStream");
+                    const frame = document.getElementById("espCamIframe");
+                    const phEl = document.getElementById("camPlaceholder");
+                    const badge = document.getElementById("badgeCamStatus");
+                    const streamUrl = (appConfig.camStreamUrl || "").trim();
+                    const directLink = document.getElementById("camDirectLink");
+                    if (directLink && streamUrl) directLink.href = streamUrl;
+                    imgEl.style.display = "none";
+                    imgEl.removeAttribute("src");
+                    frame.removeAttribute("src");
+                    frame.style.display = "none";
+                    isCamOnline = false;
+                    if (!streamUrl) {
+                        phEl.style.display = "block";
+                        badge.className = "badge badge-neutral";
+                        badge.textContent = "CHƯA CẤU HÌNH URL";
+                        return;
+                    }
+                    if (!/^https?:\/\//i.test(streamUrl)) {
+                        phEl.style.display = "block";
+                        phEl.textContent = "URL camera phải bắt đầu bằng http:// hoặc https://";
+                        badge.className = "badge badge-danger";
+                        badge.textContent = "URL KHÔNG HỢP LỆ";
+                        return;
+                    }
+                    phEl.style.display = "none";
+                    badge.className = "badge badge-warn";
+                    badge.textContent = "ĐANG MỞ STREAM";
+
+                    // Ưu tiên hiển thị MJPEG bằng <img> thay vì iframe:
+                    // trình duyệt sẽ căn giữa và co vừa hình, không tạo vùng đen
+                    // do trang stream nằm bên trong iframe.
+                    imgEl.onload = () => {
+                        imgEl.style.display = "block";
+                        frame.style.display = "none";
+                        badge.className = "badge badge-safe";
+                        badge.textContent = "CAMERA ĐANG HIỂN THỊ";
+                        isCamOnline = true;
+                        applyCameraRotation();
+                    };
+                    imgEl.onerror = () => {
+                        // Một số firmware/trình duyệt không cho dùng MJPEG trong img.
+                        // Dùng iframe làm phương án dự phòng để vẫn xem được stream.
+                        imgEl.style.display = "none";
+                        frame.style.display = "block";
+                        badge.className = "badge badge-warn";
+                        badge.textContent = "STREAM (CHẾ ĐỘ DỰ PHÒNG)";
+                        frame.src = streamUrl;
+                        applyCameraRotation();
+                    };
+                    imgEl.src = streamUrl;
+                    applyCameraRotation();
+                }
+
+                // Lưu ảnh thật vào C:\AnhAnNinh bằng dịch vụ Python chạy tại localhost.
+                // HTML không thể ghi trực tiếp vào ổ C vì bảo mật trình duyệt.
+                async function captureSnapshot(triggerSource, logId = null) {
+                    try {
+                        const response = await fetch(
+                            SNAP_SERVER + "/capture?type=" + encodeURIComponent(triggerSource),
+                            { cache: "no-store" },
+                        );
+                        const result = await response.json();
+                        if (!response.ok || !result.ok) throw new Error(result.error || "Không lưu được ảnh");
+                        if (logId) {
+                            const entry = eventLogs.find((x) => x.id === logId);
+                            if (entry) {
+                                entry.snapshotFile = result.filename;
+                                saveLogs();
+                                renderLogs();
+                            }
+                        }
+                        if (triggerSource === "MANUAL") {
+                            addLog("SYSTEM", "Đã chụp ảnh thủ công: " + result.filename, "INFO", false);
+                        }
+                        setText("txtSnapCount", "Ảnh lưu tại C:\\AnhAnNinh");
+                        if (logId) setText("modalSnapStatus", "Đã lưu ảnh: " + result.filename);
+                        return { ok: true, filename: result.filename };
+                    } catch (err) {
+                        const reason = String(err.message || err);
+                        console.warn("Lỗi lưu ảnh:", err);
+                        if (logId) {
+                            const entry = eventLogs.find((x) => x.id === logId);
+                            if (entry) {
+                                entry.snapshotError = reason;
+                                saveLogs();
+                                renderLogs();
+                            }
+                            setText(
+                                "modalSnapStatus",
+                                "Không lưu được ảnh: " + reason + ". Hãy chạy chay_luu_anh.bat.",
+                            );
+                        } else {
+                            alert(
+                                "Không lưu được ảnh vào C:\\AnhAnNinh. Hãy chạy chay_luu_anh.bat. Chi tiết: " + reason,
+                            );
+                        }
+                        return { ok: false, reason };
+                    }
+                }
+
+                /* =========================================================================
+                 * 9. TÍCH HỢP BIỂU ĐỒ GRAFANA IFRAME (KHU VỰC 6)
+                 * ========================================================================= */
+                function renderGrafanaPanels() {
+                    const base = (appConfig.grafanaBaseUrl || "http://localhost:3000").replace(/\/+$/, "");
+                    const path = (appConfig.grafanaPath || "").replace(/^\/+/, "");
+                    setText("lblGrafanaServer", base);
+
+                    const mapping = [
+                        { key: "temp", iframeId: "iframeTemp", phId: "phTemp", lblId: "lblPidTemp" },
+                        { key: "hum", iframeId: "iframeHum", phId: "phHum", lblId: "lblPidHum" },
+                        { key: "gas", iframeId: "iframeGas", phId: "phGas", lblId: "lblPidGas" },
+                        { key: "light", iframeId: "iframeLight", phId: "phLight", lblId: "lblPidLight" },
+                        { key: "motion", iframeId: "iframeMotion", phId: "phMotion", lblId: "lblPidMotion" },
+                        { key: "gasRaw", iframeId: "iframegasRaw", phId: "phgasRaw", lblId: "lblPidgasRaw" },
+                        {
+                            key: "motionExtra",
+                            iframeId: "iframemotionExtra",
+                            phId: "phmotionExtra",
+                            lblId: "lblPidmotionExtra",
+                        },
+                        {
+                            key: "doorExtra",
+                            iframeId: "iframedoorExtra",
+                            phId: "phdoorExtra",
+                            lblId: "lblPiddoorExtra",
+                        },
+                    ];
+
+                    mapping.forEach((m) => {
+                        const pid = String(appConfig.panelIds[m.key] || "").trim();
+                        setText(m.lblId, pid || "Chưa đặt");
+                        const iframe = document.getElementById(m.iframeId);
+                        const ph = document.getElementById(m.phId);
+
+                        if (!path || !pid) {
+                            iframe.style.display = "none";
+                            iframe.removeAttribute("src");
+                            ph.style.display = "block";
+                        } else {
+                            const url = `${base}/${path}?orgId=1&from=${encodeURIComponent(grafanaFromTime)}&to=now&panelId=${encodeURIComponent(pid)}&theme=light`;
+                            iframe.src = url;
+                            iframe.style.display = "block";
+                            ph.style.display = "none";
+                        }
+                    });
+                }
+
+                /* =========================================================================
+                 * 10. ĐỒNG HỒ HỆ THỐNG & WATCHDOG PHÁT HIỆN DỮ LIỆU CẢM BIẾN BỊ CŨ
+                 * ========================================================================= */
+                function startSystemWatchdog() {
+                    setInterval(() => {
+                        setText("txtCurrentTime", formatDateTime(new Date()));
+
+                        const dotEsp = document.getElementById("dotEsp");
+                        if (lastSensorTimestamp === 0) {
+                            dotEsp.className = "dot dot-offline";
+                            setText("txtEspStatus", isMqttConnected ? "Chờ ESP32 gửi dữ liệu" : "Chưa có dữ liệu");
+                        } else {
+                            const elapsed = Date.now() - lastSensorTimestamp;
+                            if (elapsed > STALE_THRESHOLD_MS) {
+                                dotEsp.className = "dot dot-warn";
+                                const sec = Math.floor(elapsed / 1000);
+                                setText("txtEspStatus", "Dữ liệu cũ (" + sec + "s trước)");
+                            }
+                        }
+                    }, 1000);
+                }
+
+                /* =========================================================================
+                 * 11. XUẤT CSV & GẮN SỰ KIỆN GIAO DIỆN
+                 * ========================================================================= */
+                function exportLogsToCsv() {
+                    if (eventLogs.length === 0) {
+                        alert("Chưa có dữ liệu nhật ký để xuất CSV.");
+                        return;
+                    }
+                    const headers = ["Thoi_Gian", "Loai_Su_Kien", "Noi_Dung", "Muc_Do", "Trang_Thai_Xu_Ly"];
+                    const rows = eventLogs.map((x) => [
+                        `"${formatDateTime(new Date(x.timestamp))}"`,
+                        `"${x.type}"`,
+                        `"${String(x.message).replace(/"/g, '""')}"`,
+                        `"${x.severity}"`,
+                        `"${x.handled ? "Da xu ly" : "Chua xu ly"}"`,
+                    ]);
+
+                    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+                    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "SmartRoom_EventLogs_" + Date.now() + ".csv";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+
+                function openConfigModal() {
+                    document.getElementById("cfgMqttUrl").value = appConfig.mqttWsUrl;
+                    document.getElementById("cfgMqttUser").value = appConfig.mqttUser;
+                    document.getElementById("cfgMqttPass").value = appConfig.mqttPass;
+                    document.getElementById("cfgCamStreamUrl").value = appConfig.camStreamUrl;
+                    document.getElementById("cfgCamCaptureUrl").value = appConfig.camCaptureUrl;
+                    document.getElementById("cfgGrafanaUrl").value = appConfig.grafanaBaseUrl;
+                    document.getElementById("cfgGrafanaUid").value = appConfig.grafanaPath;
+                    document.getElementById("cfgGrafanaPanels1").value =
+                        `${appConfig.panelIds.temp},${appConfig.panelIds.hum},${appConfig.panelIds.gas}`;
+                    document.getElementById("cfgGrafanaPanels2").value =
+                        `${appConfig.panelIds.light},${appConfig.panelIds.motion}`;
+                    document.getElementById("cfgGrafanaPanelsExtra").value =
+                        `${appConfig.panelIds.gasRaw || ""},${appConfig.panelIds.motionExtra || ""},${appConfig.panelIds.doorExtra || ""}`;
+                    document.getElementById("configModal").classList.add("show");
+                }
+
+                function applyConfigFromModal() {
+                    appConfig.mqttWsUrl = document.getElementById("cfgMqttUrl").value.trim() || "ws://127.0.0.1:9001";
+                    appConfig.mqttUser = document.getElementById("cfgMqttUser").value.trim();
+                    appConfig.mqttPass = document.getElementById("cfgMqttPass").value;
+                    appConfig.camStreamUrl = document.getElementById("cfgCamStreamUrl").value.trim();
+                    appConfig.camCaptureUrl = document.getElementById("cfgCamCaptureUrl").value.trim();
+                    appConfig.grafanaBaseUrl =
+                        document.getElementById("cfgGrafanaUrl").value.trim() || "http://localhost:3000";
+                    appConfig.grafanaPath = document.getElementById("cfgGrafanaUid").value.trim();
+
+                    const p1 = document
+                        .getElementById("cfgGrafanaPanels1")
+                        .value.split(",")
+                        .map((s) => s.trim());
+                    const p2 = document
+                        .getElementById("cfgGrafanaPanels2")
+                        .value.split(",")
+                        .map((s) => s.trim());
+                    const pExtra = document
+                        .getElementById("cfgGrafanaPanelsExtra")
+                        .value.split(",")
+                        .map((s) => s.trim());
+                    appConfig.panelIds = {
+                        temp: p1[0] || "1",
+                        hum: p1[1] || "2",
+                        gas: p1[2] || "3",
+                        light: p2[0] || "4",
+                        motion: p2[1] || "5",
+                        gasRaw: pExtra[0] || "",
+                        motionExtra: pExtra[1] || "",
+                        doorExtra: pExtra[2] || "",
+                    };
+
+                    saveConfig();
+                    document.getElementById("configModal").classList.remove("show");
+                    addLog("SYSTEM", "Đã cập nhật cấu hình kết nối hệ thống.", "INFO", false);
+
+                    connectMqtt();
+                    initCameraStream();
+                    renderGrafanaPanels();
+                }
+
+                function bindEvents() {
+                    document.getElementById("btnEnableAudio").addEventListener("click", initAudioContext);
+                    document.getElementById("btnOpenConfig").addEventListener("click", openConfigModal);
+                    document.getElementById("btnCloseConfig").addEventListener("click", () => {
+                        document.getElementById("configModal").classList.remove("show");
+                    });
+                    document.getElementById("btnSaveConfig").addEventListener("click", applyConfigFromModal);
+
+                    // Điều khiển An ninh
+                    document.getElementById("btnArm").addEventListener("click", () => sendSecurityModeCommand("ARM"));
+                    document
+                        .getElementById("btnDisarm")
+                        .addEventListener("click", () => sendSecurityModeCommand("DISARM"));
+                    document.getElementById("btnBuzzerOn").addEventListener("click", () => sendBuzzerCommand("ON"));
+                    document.getElementById("btnBuzzerOff").addEventListener("click", () => sendBuzzerCommand("OFF"));
+
+                    // Camera
+                    document
+                        .getElementById("btnCaptureSnap")
+                        .addEventListener("click", () => captureSnapshot("MANUAL"));
+                    document.getElementById("btnReloadCam").addEventListener("click", initCameraStream);
+                    document.getElementById("btnRotateCamLeft").addEventListener("click", () => rotateCamera(-90));
+                    document.getElementById("btnRotateCamRight").addEventListener("click", () => rotateCamera(90));
+
+                    // Trung tâm cảnh báo & Popup (Tắt âm trình duyệt KHÔNG gửi lệnh tắt còi vật lý)
+                    document.getElementById("btnMuteBrowserSound").addEventListener("click", stopBrowserAlarmSound);
+                    document.getElementById("btnModalMuteBrowser").addEventListener("click", stopBrowserAlarmSound);
+                    document.getElementById("btnAckBannerAlert").addEventListener("click", acknowledgeAllAlerts);
+                    document.getElementById("btnModalAcknowledge").addEventListener("click", acknowledgeAllAlerts);
+
+                    // Bộ lọc thời gian Grafana
+                    document.querySelectorAll("#grafanaTimeBar .btn-time").forEach((btn) => {
+                        btn.addEventListener("click", () => {
+                            document
+                                .querySelectorAll("#grafanaTimeBar .btn-time")
+                                .forEach((b) => b.classList.remove("active"));
+                            btn.classList.add("active");
+                            grafanaFromTime = btn.getAttribute("data-from") || "now-1h";
+                            renderGrafanaPanels();
+                        });
+                    });
+
+                    // Bộ lọc Nhật ký sự kiện
+                    document.getElementById("logSearchInput").addEventListener("input", renderLogs);
+                    document.getElementById("logTypeFilter").addEventListener("change", renderLogs);
+                    document.getElementById("logTimeFilter").addEventListener("change", renderLogs);
+                    document.getElementById("btnExportCsv").addEventListener("click", exportLogsToCsv);
+                    document.getElementById("btnClearLogs").addEventListener("click", () => {
+                        if (
+                            window.confirm("Bạn có chắc chắn muốn xóa toàn bộ nhật ký sự kiện trên trình duyệt không?")
+                        ) {
+                            eventLogs = [];
+                            saveLogs();
+                            renderLogs();
+                            updateTodayAlertCounter();
+                        }
+                    });
+                }
+
+                // Khởi chạy ứng dụng
+                bindEvents();
+                renderLogs();
+                updateTodayAlertCounter();
+                startSystemWatchdog();
+                connectMqtt();
+                initCameraStream();
+                renderGrafanaPanels();
+            })();
+        </script>
+    </body>
+</html>
