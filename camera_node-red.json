@@ -1,0 +1,268 @@
+[
+    {
+        "id": "tab_cam_nhom20_v2",
+        "type": "tab",
+        "label": "Nhóm 20 - Camera cảnh báo",
+        "disabled": false,
+        "info": "Motion, door/open qua events; sound threshold qua sensors. ESP32-CAM HTTP capture."
+    },
+    {
+        "id": "cam_events",
+        "type": "mqtt in",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Sự kiện cửa / người",
+        "topic": "nhom20/phong1/events",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "broker_cam_nhom20_v2",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 100,
+        "wires": [
+            [
+                "cam_event_filter"
+            ]
+        ]
+    },
+    {
+        "id": "cam_sensors",
+        "type": "mqtt in",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Âm thanh cảm biến",
+        "topic": "nhom20/phong1/sensors",
+        "qos": "0",
+        "datatype": "json",
+        "broker": "broker_cam_nhom20_v2",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 160,
+        "y": 180,
+        "wires": [
+            [
+                "cam_sound_filter"
+            ]
+        ]
+    },
+    {
+        "id": "cam_event_filter",
+        "type": "function",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Lọc mở cửa / có người",
+        "func": "const d = msg.payload;\nif (!d || typeof d !== \"object\") return null;\nif (d.type === \"door\" && d.detail === \"open\") msg.reason = \"mo_cua\";\nelse if (d.type === \"motion\" && d.detail !== \"end\") msg.reason = \"co_nguoi\";\nelse return null;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 100,
+        "wires": [
+            [
+                "cam_request"
+            ]
+        ]
+    },
+    {
+        "id": "cam_sound_filter",
+        "type": "function",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Âm lớn + giới hạn 15 giây",
+        "func": "// Chỉnh ngưỡng sau khi xem số liệu âm thanh thực tế.\nconst THRESHOLD = 1000000;\nconst COOLDOWN_MS = 15000;\nconst d = msg.payload;\nif (!d || typeof d.sound !== \"number\") return null;\nconst now = Date.now();\nconst previous = context.get(\"lastSoundShot\") || 0;\nif (d.sound < THRESHOLD || now - previous < COOLDOWN_MS) return null;\ncontext.set(\"lastSoundShot\", now);\nmsg.reason = \"tieng_dong\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 180,
+        "wires": [
+            [
+                "cam_request"
+            ]
+        ]
+    },
+    {
+        "id": "cam_request",
+        "type": "function",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Đặt IP camera + khóa",
+        "func": "// THAY IP bằng IP in trên Serial Monitor của ESP32-CAM.\n// const CAMERA_IP = \"http://192.168.1.108/capture\";\nconst CAMERA_IP = \"192.168.1.104\";\n\nconst CAPTURE_KEY = \"eeeeeeeee\";\n// Không gửi nhiều yêu cầu chụp đồng thời (các sự kiện gần nhau).\nconst now = Date.now();\nconst last = flow.get(\"lastCaptureRequest\") || 0;\nif (now - last < 2500) return null;\nflow.set(\"lastCaptureRequest\", now);\nmsg.method = \"GET\";\nmsg.url = `http://${CAMERA_IP}/capture`;\nmsg.headers = {\"X-Capture-Key\": CAPTURE_KEY};\nmsg.reason = msg.reason || \"su_kien\";\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 680,
+        "y": 140,
+        "wires": [
+            [
+                "cam_http"
+            ]
+        ]
+    },
+    {
+        "id": "cam_http",
+        "type": "http request",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Lấy ảnh JPEG",
+        "method": "use",
+        "ret": "bin",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 900,
+        "y": 140,
+        "wires": [
+            [
+                "cam_validate"
+            ]
+        ]
+    },
+    {
+        "id": "cam_validate",
+        "type": "function",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Kiểm tra ảnh + đặt tên file",
+        "func": "if (msg.statusCode !== 200 || !Buffer.isBuffer(msg.payload) || msg.payload.length < 100) {\n    node.error(`Chụp thất bại: HTTP ${msg.statusCode}; kiểm tra IP, WiFi, khóa chụp`, msg);\n    return null;\n}\n// Kiểm tra chữ ký JPEG FF D8 ... FF D9\nconst b = msg.payload;\nif (b[0] !== 0xFF || b[1] !== 0xD8 || b[b.length-2] !== 0xFF || b[b.length-1] !== 0xD9) {\n    node.error(\"Phản hồi không phải ảnh JPEG hoàn chỉnh\", msg);\n    return null;\n}\nconst stamp = new Date().toISOString().replace(/[:.]/g, \"-\");\nmsg.filename = `C:/AnhAnNinh/${msg.reason}_${stamp}.jpg`;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1150,
+        "y": 140,
+        "wires": [
+            [
+                "cam_file"
+            ]
+        ]
+    },
+    {
+        "id": "cam_file",
+        "type": "file",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Lưu ảnh vào Windows",
+        "filename": "filename",
+        "filenameType": "msg",
+        "appendNewline": false,
+        "createDir": true,
+        "overwriteFile": "true",
+        "encoding": "none",
+        "x": 1390,
+        "y": 140,
+        "wires": [
+            [
+                "cam_success"
+            ]
+        ]
+    },
+    {
+        "id": "cam_success",
+        "type": "debug",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Đã lưu ảnh",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "filename",
+        "targetType": "msg",
+        "statusVal": "filename",
+        "statusType": "msg",
+        "x": 1590,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "cam_catch",
+        "type": "catch",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Bắt lỗi chụp / ghi ảnh",
+        "scope": [
+            "cam_http",
+            "cam_validate",
+            "cam_file"
+        ],
+        "uncaught": false,
+        "x": 1110,
+        "y": 260,
+        "wires": [
+            [
+                "cam_error"
+            ]
+        ]
+    },
+    {
+        "id": "cam_error",
+        "type": "debug",
+        "z": "tab_cam_nhom20_v2",
+        "name": "LỖI camera / lưu file",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "error.message",
+        "statusType": "msg",
+        "x": 1380,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "cam_note",
+        "type": "comment",
+        "z": "tab_cam_nhom20_v2",
+        "name": "Sửa CAMERA_IP, CAPTURE_KEY trong Function; tạo C:\\AnhAnNinh nếu cần",
+        "info": "",
+        "x": 420,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "broker_cam_nhom20_v2",
+        "type": "mqtt-broker",
+        "name": "Mosquitto local",
+        "broker": "127.0.0.1",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    }
+]
